@@ -1,0 +1,7 @@
+{
+  "default": "演習用定義_完成版.xml",
+  "files": [
+    { "file": "演習用定義_完成版.xml", "label": "演習用定義_完成版.xml" },
+    { "file": "exercise_definition_complete.xml", "label": "exercise_definition_complete.xml" }
+  ]
+}

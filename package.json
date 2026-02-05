@@ -1,0 +1,19 @@
+{
+  "name": "definition_check_vercel",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "bun build ./src/index.html --outdir=dist --minify && bun run copy-public",
+    "copy-public": "bun scripts/copy-public.js"
+  },
+  "dependencies": {
+    "pdfjs-dist": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

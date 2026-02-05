@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>帳票定義作成トレーニングルーム</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-text">
+                <div class="logo-text">i-Reporter</div>
+            </div>
+        </div>
+        <div class="header-title">帳票定義作成トレーニングルーム</div>
+    </div>
+
+    <!-- 端末準備完了チェックバナー（一端非表示） -->
+    <div class="setup-check-banner" id="setupCheckBanner" style="display: none;">
+        <div class="setup-check-content">
+            <div class="setup-check-icon">⚠️</div>
+            <div class="setup-check-text">
+                <strong>端末の準備は完了していますか？</strong>
+                <span>ConMas Excel COM add-in、i-Reporterアプリ、ConMasDesignerのインストール・設定が完了していない方は、まず導入手順を確認してください。</span>
+            </div>
+            <button class="setup-check-btn" id="setupCheckGuideBtn">
+                <span class="setup-check-btn-icon">📋</span>
+                端末の準備は完了していない方はこちら
+            </button>
+        </div>
+        <button class="setup-check-close" id="setupCheckCloseBtn" title="このバナーを閉じる">×</button>
+    </div>
+
+    <div class="container">
+        <!-- 動画サムネイルセクション -->
+        <div class="video-thumbnail-section">
+            <div class="video-thumbnail-title">📹 帳票定義作成編：さっそく使ってみよう</div>
+            <div class="video-content">
+                <div class="video-main">
+                    <div class="video-thumbnail-container" id="videoThumbnailContainer">
+                        <div class="video-thumbnail" id="videoThumbnail">
+                            <img id="videoThumbnailImage" src="" alt="動画サムネイル" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                            <div class="video-thumbnail-overlay"></div>
+                            <div class="video-thumbnail-content">
+                                <div id="videoThumbnailText">帳票定義作成編：さっそく使ってみよう</div>
+                            </div>
+                        </div>
+                        <div class="play-button">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="video-description">
+                        クリックして操作手順の動画をご覧ください
+                    </div>
+                    <!-- 非表示の動画要素（サムネイル生成用） -->
+                    <video id="hiddenVideo" style="display: none;" preload="metadata"></video>
+                    
+                    <div class="download-section">
+                        <div class="download-title">📁 ここで使用するファイル</div>
+                        <a href="#" class="download-link" id="downloadLink">
+                            <span class="download-icon">⬇️</span>
+                            演習用定義_XX.xlsx
+                        </a>
+                    </div>
+                </div>
+                <div class="video-list">
+                    <div class="video-list-title">📋 動画一覧</div>
+                    
+                    <div class="video-category">
+                        <div class="category-title">■帳票定義作成編</div>
+                        <div class="video-item" data-video-id="cluster-settings" data-video-title="クラスター設定">クラスター設定</div>
+                        <div class="video-item" data-video-id="designer-basic" data-video-title="ConMas Designer 基本操作">ConMas Designer 基本操作</div>
+                        <div class="video-item" data-video-id="excel-output" data-video-title="Excel定義出力">Excel定義出力</div>
+                        <div class="video-item" data-video-id="update-report" data-video-title="帳票定義の更新">帳票定義の更新</div>
+                    </div>
+                    
+                    <div class="video-category">
+                        <div class="category-title">■管理者用コンテンツ</div>
+                        <div class="video-item" data-video-id="manager-overview" data-video-title="Manager概要">Manager概要</div>
+                        <div class="video-item" data-video-id="user-creation" data-video-title="ユーザー作成">ユーザー作成</div>
+                        <div class="video-item" data-video-id="group-creation" data-video-title="グループ作成">グループ作成</div>
+                        <div class="video-item" data-video-id="terminal-management" data-video-title="端末管理">端末管理</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-title">XMLファイル比較</div>
+            
+            <input type="file" id="fileInput2" class="file-input" accept=".xml" style="display:none;">
+            
+            <div class="file-inputs">
+                <div class="file-input-group">
+                    <label for="referenceXmlSelect" class="compare-label">基準XML</label>
+                    <select id="referenceXmlSelect" class="reference-xml-select">
+                        <option value="">読み込み中...</option>
+                    </select>
+                    <div class="file-info" id="fileInfo1" style="display:none;"></div>
+                </div>
+                <div class="file-input-group">
+                    <button class="compare-btn" id="uploadCompareBtn">比較XMLをアップロード</button>
+                    <div class="file-info" id="fileInfo2" style="display:none;"></div>
+                </div>
+            </div>
+            
+            <!-- 基準選択時の表示用（動的更新） -->
+            <div class="reference-file-info" id="referenceFileInfo" style="display:none;">
+                <div class="reference-file-header" id="referenceFileHeader">
+                    <span class="reference-icon">📋</span>
+                    <strong>基準ファイル</strong>
+                </div>
+                <div class="reference-file-details" id="referenceFileDetails"></div>
+            </div>
+            
+            <button class="compare-btn" id="compareBtn" style="display:none;">比較を開始</button>
+        </div>
+
+        <div class="loading" id="loading" style="display:none;">
+            <p>ファイルを比較中...</p>
+        </div>
+
+        <div class="results" id="results" style="display:none;">
+            <div class="result-box" id="resultBox"></div>
+            <div class="tabs">
+                <button class="tab" data-tab="results" style="display: none;">比較結果</button>
+                <button class="tab" data-tab="structure" style="display: none;">構造比較</button>
+                <button class="tab active" data-tab="pdf-layout">クラスター設定</button>
+                <button class="tab" data-tab="network-layout">ネットワーク設定</button>
+                <button class="tab" data-tab="settings" style="display: none;">設定</button>
+            </div>
+            <div class="tab-content" id="resultsTab" style="display: none;">
+                <div class="comparison-results" id="resultsContent">
+                    <div class="results-header">
+                        <h3>📊 比較結果サマリー</h3>
+                        <p>選択された設定に基づいて比較結果を表示します</p>
+                    </div>
+                    <div class="results-summary" id="resultsSummary">
+                        <div class="summary-message">
+                            ファイルを選択して比較を実行してください。
+                        </div>
+                    </div>
+                    
+                    <!-- デバッグ情報セクション -->
+                    <div class="debug-info" id="debugInfo" style="display: none; margin-top: 2rem; padding: 1rem; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #dc3545;">
+                        <h4>🐛 デバッグ情報</h4>
+                        <div class="debug-content" id="debugContent">
+                            <p>エラーが発生した場合、ここに詳細な情報が表示されます。</p>
+                        </div>
+                        <button class="action-btn" id="toggleDebugBtn" style="margin-top: 1rem;">
+                            🔍 デバッグ情報の表示/非表示
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-content" id="structureTab" style="display: none;">
+                <div class="structure-info" id="structureContent">
+                    <div class="structure-header">
+                        <h3>🏗️ 構造比較</h3>
+                        <p>XMLファイルの構造的な違いを詳細に表示します</p>
+                    </div>
+                    <div class="structure-content" id="structureDetails">
+                        <div class="structure-message">
+                            比較結果が表示されます。
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-content active" id="pdf-layoutTab">
+                <div class="pdf-layout-viewer" id="pdfLayoutContent">
+                    <div class="pdf-layout-header">
+                        <h3>🔧 クラスター設定</h3>
+                        <p>比較XMLファイルから抽出したクラスター設定を可視化します。各アイコンをクリックすることでクラスター情報を確認できます。</p>
+                        <p><strong>アイコンの色の解説：</strong></p>
+                        <ul style="font-size: 0.9rem; margin: 0.5rem 0; padding-left: 1.2rem;">
+                            <li><span style="color: #ff9500; font-weight: bold;">オレンジ</span>：基準となるクラスター</li>
+                            <li><span style="color: #007bff; font-weight: bold;">青</span>：index、種別、名称が一致</li>
+                            <li><span style="color: #dc3545; font-weight: bold;">赤</span>：index、種別、名称が異なる</li>
+                            <li><span style="font-weight: bold;">！</span>：設定に差分がある</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="pdf-controls" style="display: none;">
+                        <div class="control-group">
+                            <label>比較ファイル:</label>
+                            <select id="pdfFileSelect">
+                                <option value="compare" selected>比較表示（基準 vs 比較）</option>
+                                <option value="file2">比較XMLのみ</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>表示モード:</label>
+                            <select id="pdfDisplayMode">
+                                <option value="compare" selected>比較表示（基準+比較）</option>
+                                <option value="overlay">クラスター重ね表示</option>
+                                <option value="separate">クラスター個別表示</option>
+                                <option value="background">背景のみ</option>
+                                <option value="network">ネットワーク表示</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>シート選択:</label>
+                            <div class="sheet-navigation" id="sheetNavigation" style="display: none;">
+                                <button class="sheet-nav-btn" id="prevSheetBtn" disabled>◀ 前のシート</button>
+                                <span class="sheet-info" id="sheetInfo">シート 1 / 1</span>
+                                <button class="sheet-nav-btn" id="nextSheetBtn" disabled>次のシート ▶</button>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label>スケール:</label>
+                            <span id="scaleValue" style="font-weight: 600; color: #ff9500; font-size: 1.1rem; padding: 0.5rem; background: white; border-radius: 6px; border: 2px solid #ff9500;">120% (デフォルト)</span>
+                        </div>
+                    </div>
+                    
+                    <!-- シート選択（複数シート対応） -->
+                    <div class="sheet-selection-container" id="sheetSelectionContainer" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 0.5rem; display: block;">📄 シート選択:</label>
+                        <div class="sheet-navigation" id="sheetNavigationVisible">
+                            <!-- シートボタンがここに動的に生成されます -->
+                        </div>
+                    </div>
+                    
+                    <div class="pdf-container">
+                        <div class="pdf-layout-row">
+                            <div class="pdf-viewer" id="pdfViewer">
+                                <div class="pdf-placeholder">
+                                    XMLファイルを選択してPDFレイアウトを表示してください
+                                </div>
+                            </div>
+                            <div class="pdf-info" id="pdfInfo">
+                                <h4>📋 PDF情報</h4>
+                                <div class="info-item">
+                                    <strong>シート名:</strong> <span id="pdfSheetName">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>サイズ:</strong> <span id="pdfSize">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>クラスター数:</strong> <span id="pdfClusterCount">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>背景画像:</strong> <span id="pdfBackground">-</span>
+                                </div>
+                                
+                                <div class="cluster-filter" id="clusterFilter" style="display: none;">
+                                    <h5>🔍 クラスター選択</h5>
+                                    <div class="filter-buttons" id="filterButtons">
+                                        <button class="filter-btn active" data-filter="all">全て表示</button>
+                                        <button class="filter-btn different" data-filter="different">設定が異なる</button>
+                                        <button class="filter-btn" data-filter="same">設定が同じ</button>
+                                    </div>
+                                </div>
+                                
+                                <!-- クラスターの枠の色の説明 -->
+                                <div class="cluster-color-info">
+                                    <h5>🎨 クラスターの枠の色の説明</h5>
+                                    <ul style="font-size: 0.9rem; margin: 0.5rem 0; padding-left: 1.2rem;">
+                                        <li><span style="color: #28a745; font-weight: bold;">緑の破線</span>：基準XMLのクラスター位置</li>
+                                        <li><span style="color: #dc3545; font-weight: bold;">赤枠</span>：比較XMLで設定が異なるクラスター</li>
+                                        <li><span style="color: #007bff; font-weight: bold;">青枠</span>：比較XMLで設定が一致するクラスター</li>
+                                        <li><span style="color: #ff9500; font-weight: bold;">オレンジ枠</span>：単一XML表示時</li>
+                                    </ul>
+                                </div>
+                                
+                                <!-- 表示モードの説明 -->
+                                <div class="display-mode-info">
+                                    <h5>📋 表示モードの説明</h5>
+                                    <p style="font-size: 0.9rem; margin: 0.5rem 0; line-height: 1.4;">
+                                        <strong>比較表示モード：</strong>基準XMLのPDF背景に、基準クラスター（緑の破線）と比較クラスター（青/赤枠）を重ねて表示します。
+                                    </p>
+                                    <p style="font-size: 0.9rem; margin: 0.5rem 0; line-height: 1.4;">
+                                        <strong>PDF背景表示：</strong>比較用XMLを選択して比較を実行すると、基準XMLのPDF背景が自動的に表示されます。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="network-layoutTab">
+                <div class="network-layout-viewer" id="networkLayoutContent">
+                    <div class="network-layout-header" style="margin-bottom: 1rem;">
+                        <h3>🔗 ネットワーク設定</h3>
+                        <p>XMLファイルから抽出したネットワーク設定を可視化します。各ネットワーク線をクリックすることで先行・後続のネットワークとクラスターの関係を確認できます。</p>
+                        <p><strong>線の色の解説：</strong></p>
+                        <ul style="font-size: 0.9rem; margin: 0.5rem 0; padding-left: 1.2rem;">
+                            <li><span style="color: #ff9500; font-weight: bold;">オレンジ線</span>：基準となるネットワーク</li>
+                            <li><span style="color: #007bff; font-weight: bold;">青線</span>：ネットワーク設定が一致</li>
+                            <li><span style="color: #dc3545; font-weight: bold;">赤線</span>：ネットワーク設定が異なる</li>
+                            <li><span style="color: #dc3545; font-weight: bold;">赤破線</span>：ネットワーク設定が不足している</li>
+                        </ul>
+                    </div>
+                    <!-- シート選択（複数シート対応） -->
+                    <div class="sheet-selection-container" id="networkSheetSelectionContainer" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 0.5rem; display: block;">📄 シート選択:</label>
+                        <div class="sheet-navigation" id="networkSheetNavigationVisible">
+                            <!-- シートボタンがここに動的に生成されます -->
+                        </div>
+                    </div>
+                    
+                    <div class="pdf-container">
+                        <div class="pdf-viewer" id="networkViewer">
+                            <div class="network-placeholder">
+                                XMLファイルを選択してネットワーク設定を表示してください
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="settingsTab" style="display: none;">
+                <div class="comparison-settings" id="settingsContent">
+                    <div class="settings-header">
+                        <h3>⚙️ 表示設定</h3>
+                        <p>クラスター設定上に表示したい情報を選択してください。チェックした項目がクラスターにマウスを載せたときに表示されます。</p>
+                    </div>
+                    
+                    <div class="settings-grid">
+                        <div class="setting-category">
+                            <h4>🔢 クラスター情報</h4>
+                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_cluster_id">
+                                    <span class="checkmark"></span>
+                                    クラスターID
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_cluster_name">
+                                    <span class="checkmark"></span>
+                                    クラスター名称
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_cluster_type">
+                                    <span class="checkmark"></span>
+                                    クラスター種別
+                                </label>
+                            </div>
+                        </div>
+                        
+
+                        
+                        <div class="setting-category">
+                            <h4>🔗 ネットワーク情報</h4>
+                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_network_info">
+                                    <span class="checkmark"></span>
+                                    ネットワーク設定
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_value_links">
+                                    <span class="checkmark"></span>
+                                    バリューリンク
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_network_position">
+                                    <span class="checkmark"></span>
+                                    ネットワーク位置
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_network_restrictions">
+                                    <span class="checkmark"></span>
+                                    ネットワーク制限設定
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>📋 選択肢・設定情報</h4>
+                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_choices">
+                                    <span class="checkmark"></span>
+                                    選択肢設定
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_parameters">
+                                    <span class="checkmark"></span>
+                                    入力パラメータ
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_choice_details">
+                                    <span class="checkmark"></span>
+                                    選択肢詳細比較
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>🎨 表示オプション</h4>
+                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_differences">
+                                    <span class="checkmark"></span>
+                                    差分ハイライト
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="show_tooltips">
+                                    <span class="checkmark"></span>
+                                    詳細ツールチップ
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button class="action-btn" id="resetDisplaySettingsBtn">🔄 設定リセット</button>
+                        <button class="action-btn" id="selectAllDisplaySettingsBtn">✅ 全て選択</button>
+                        <button class="action-btn" id="clearAllDisplaySettingsBtn">❌ 全て解除</button>
+                    </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>🔄 カーボンコピー</h4>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="carbon_existence" checked>
+                                    <span class="checkmark"></span>
+                                    設定の有無
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="carbon_target" checked>
+                                    <span class="checkmark"></span>
+                                    コピー先シート・クラスター
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="carbon_edit" checked>
+                                    <span class="checkmark"></span>
+                                    編集可否設定
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>📊 帳票コピー</h4>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="report_display" checked>
+                                    <span class="checkmark"></span>
+                                    表示設定
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="report_clear" checked>
+                                    <span class="checkmark"></span>
+                                    クリア設定
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>🔄 ネットワーク制限</h4>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="network_sheets" checked>
+                                    <span class="checkmark"></span>
+                                    遷移元・先シート
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="network_clusters" checked>
+                                    <span class="checkmark"></span>
+                                    遷移元・先クラスター
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="network_skip" checked>
+                                    <span class="checkmark"></span>
+                                    スキップ設定
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="network_condition" checked>
+                                    <span class="checkmark"></span>
+                                    条件設定
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>🔗 バリューリンク</h4>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="value_combination" checked>
+                                    <span class="checkmark"></span>
+                                    親子関係の組み合わせ
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="value_select" checked>
+                                    <span class="checkmark"></span>
+                                    選択値設定
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>📅 クラスター種別詳細</h4>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="cluster_type_detail" checked>
+                                    <span class="checkmark"></span>
+                                    クラスター種別の詳細比較
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="date_calendar_compare" checked>
+                                    <span class="checkmark"></span>
+                                    日付・カレンダー比較
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="numeric_calculate_compare" checked>
+                                    <span class="checkmark"></span>
+                                    数値・計算比較
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="setting-category">
+                            <h4>🔗 ネットワーク・バリューリンク</h4>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="network_value_compare" checked>
+                                    <span class="checkmark"></span>
+                                    ネットワーク・バリューリンク・カスタムマスター比較
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="setting-category">
+                            <h4>📋 選択肢設定</h4>
+                            <div class="setting-item">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="choice_settings_compare" checked>
+                                    <span class="checkmark"></span>
+                                    選択肢設定の詳細比較
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-category">
+                            <h4>🧪 新比較機能テスト</h4>
+                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">新しく追加された比較機能のテスト</p>
+                            <div class="setting-item">
+                                <button class="action-btn" id="testNewComparisonFeaturesBtn" style="width: 100%; margin-top: 0.5rem;">
+                                    🧪 新比較機能テスト
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ネットワーク詳細モーダル -->
+    <div class="network-modal" id="networkModal" style="display: none;">
+        <div class="network-modal-content">
+            <div class="network-modal-header">
+                <h3 id="networkModalTitle">🔗 ネットワーク詳細情報</h3>
+                <button class="network-modal-close">×</button>
+            </div>
+            <div class="network-modal-body" id="networkModalBody">
+                <!-- コンテンツはJavaScriptで動的に生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- クラスター詳細モーダル -->
+    <div class="cluster-modal" id="clusterModal" style="display: none;">
+        <div class="cluster-modal-content">
+            <div class="cluster-modal-header">
+                <h3 id="clusterModalTitle">🔍 クラスター詳細情報</h3>
+                <button class="cluster-modal-close">×</button>
+            </div>
+            <div class="cluster-modal-body" id="clusterModalBody">
+                <!-- コンテンツはJavaScriptで動的に生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 動画プレーヤーモーダル -->
+    <div class="video-modal" id="videoModal" style="display: none;">
+        <div class="video-modal-content">
+            <div class="video-modal-header">
+                <h3 id="videoModalTitle">動画を再生</h3>
+                <button class="video-modal-close">×</button>
+            </div>
+            <div class="video-modal-body">
+                <div id="videoPlayer" style="width: 100%; height: 80vh; position: relative; background: #000;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- main.js: メインJavaScriptファイルを読み込み -->
+    <!-- XMLファイル比較、可視化、差分検出、タブ切り替え、ファイル操作などの機能を提供 -->
+    <!-- 主要な関数: compareXmlFile(), generatePdfLayout(), generateNetworkLayout(), showTab() など -->
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
