@@ -166,6 +166,15 @@ export function formatSkip(skip) {
     return skip || 'しない';
 }
 
+/** 後続クラスターの自動入力開始位置を「する／しない」で表示 */
+export function formatNextAutoInputStart(val) {
+    if (val === undefined || val === null || val === '' || val === '0' || String(val).toLowerCase() === 'false') return 'しない';
+    if (val === '1' || String(val).toLowerCase() === 'true') return 'する';
+    const n = parseInt(val, 10);
+    if (!isNaN(n) && n > 0) return 'する';
+    return 'しない';
+}
+
 export function formatCondition(condition) {
     if (!condition || condition === '') return '制限なし';
     if (condition.toLowerCase().includes('warning') || condition.toLowerCase().includes('警告')) return '警告表示';
@@ -440,7 +449,7 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
     }
 
     if (nextAutoInputStart1 !== nextAutoInputStart2) {
-        differences.push(`後続クラスターの自動入力開始位置: ${nextAutoInputStart1 || '未設定'} → ${nextAutoInputStart2 || '未設定'}`);
+        differences.push(`後続クラスターの自動入力開始位置: ${formatNextAutoInputStart(nextAutoInputStart1)} → ${formatNextAutoInputStart(nextAutoInputStart2)}`);
     }
 
     if (nextAutoInput1 !== nextAutoInput2) {

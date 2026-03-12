@@ -1,4 +1,5 @@
 import { getClusterTypeJapanese, extractParameter } from './cluster-diff.js';
+import { formatNextAutoInputStart } from './network-diff.js';
 
 export function performXmlComparison(xml1, xml2, context = {}) {
     const { file1, file2 } = context;
@@ -448,10 +449,10 @@ function compareNetworksAndValueLinks(doc1, doc2, result) {
             result.differences.push({
                 type: 'network',
                 category: 'nextAutoInputStart',
-                description: `ネットワーク${i + 1}: 次自動入力開始が異なります`,
+                description: `ネットワーク${i + 1}: 後続クラスターの自動入力開始位置が異なります`,
                 details: {
-                    ref: nextAutoInputStart1 || '未設定',
-                    up: nextAutoInputStart2 || '未設定'
+                    ref: formatNextAutoInputStart(nextAutoInputStart1),
+                    up: formatNextAutoInputStart(nextAutoInputStart2)
                 }
             });
         }

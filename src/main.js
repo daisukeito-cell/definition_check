@@ -119,7 +119,7 @@ function setReferenceXmlUi(filename, text) {
         const header = document.getElementById('referenceFileHeader');
         if (header) header.innerHTML = '';
         const details = document.getElementById('referenceFileDetails');
-        if (details) details.innerHTML = `比較ファイルを選択し比較開始を押してください`;
+        if (details) details.innerHTML = `比較XMLをアップロードすると「比較を開始」が表示されます。`;
     }
     console.log('基準XML読み込み完了:', { filename, length: text.length });
     // 基準選択時点でプレビュー画面を表示
@@ -222,39 +222,22 @@ async function loadReferenceXmlList() {
     if (!select) return;
     select.innerHTML = '<option value="">読み込み中...</option>';
 
-    try {
-        const response = await fetch(REFERENCE_XML_MANIFEST_URL);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const manifest = await response.json();
-        const files = Array.isArray(manifest.files) ? manifest.files : [];
-        const normalized = files.map((item) => {
-            if (typeof item === 'string') return { file: item, label: item };
-            return { file: item.file, label: item.label || item.file };
-        }).filter((item) => item.file);
-        const defaultFile = manifest.default || normalized[0]?.file;
+    // 基準XMLはチェックポイント・完成版チェックの2つから選択
+    const referenceOptions = [
+        { file: 'Definition_check.xml', label: 'チェックポイント' },
+        { file: 'Definition_Complet.xml', label: '完成版チェック' }
+    ];
 
-        select.innerHTML = '';
-        normalized.forEach((item) => {
-            const option = document.createElement('option');
-            option.value = item.file;
-            option.textContent = item.label;
-            select.appendChild(option);
-        });
-        if (defaultFile) {
-            select.value = defaultFile;
-        }
-        if (select.value) loadReferenceXmlFromSelect();
-    } catch (error) {
-        console.warn('基準XML一覧の読み込みに失敗しました:', error);
-        if (select.options.length === 0) {
-            const fallbackOption = document.createElement('option');
-            fallbackOption.value = '演習用定義_完成版.xml';
-            fallbackOption.textContent = '演習用定義_完成版.xml';
-            select.appendChild(fallbackOption);
-            select.value = fallbackOption.value;
-        }
-        if (select.value) loadReferenceXmlFromSelect();
-    }
+    select.innerHTML = '';
+    referenceOptions.forEach((item) => {
+        const option = document.createElement('option');
+        option.value = item.file;
+        option.textContent = item.label;
+        select.appendChild(option);
+    });
+    // デフォルトで1つ目を選択
+    select.value = referenceOptions[0].file;
+    loadReferenceXmlFromSelect();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -294,6 +277,10 @@ function checkReady() {
     if (compareBtn) {
         compareBtn.style.display = hasReference && file2 ? 'inline-block' : 'none';
     }
+    const compareActionHint = document.getElementById('compareActionHint');
+    if (compareActionHint) {
+        compareActionHint.style.display = (hasReference && !file2) ? 'block' : 'none';
+    }
 }
 
 function compareXmlFile() {
@@ -307,13 +294,11 @@ function compareXmlFile() {
         return;
     }
 
-    // PDFビューアーのみリセット（ネットワークは比較完了後に上書きするのでリセットしない＝表示が消えない）
+    // PDFビューアーのみリセット
     const pdfViewer = document.getElementById('pdfViewer');
     if (pdfViewer) {
         pdfViewer.innerHTML = '<div class="pdf-placeholder">ファイルを読み込み中...</div>';
-        console.log('PDFビューアーをリセットしました');
     }
-    
     currentSheetIndex = 0;
     totalSheets = 0;
     xmlData2 = null;
@@ -321,14 +306,13 @@ function compareXmlFile() {
     document.getElementById('loading').style.display = 'block';
     document.getElementById('results').style.display = 'none';
 
-    // 基準XMLは既に xmlData1、比較XMLは file2 を FileReader で読み込み
     const reader2 = new FileReader();
     reader2.onload = function(e2) {
+        let xml2 = null;
         try {
             const xml1 = xmlData1;
-            const xml2 = e2.target.result;
+            xml2 = e2.target.result;
             xmlData2 = xml2;
-            
             const parser = new DOMParser();
             const xmlDoc1 = parser.parseFromString(xml1, 'text/xml');
             const xmlDoc2 = parser.parseFromString(xml2, 'text/xml');
@@ -342,161 +326,55 @@ function compareXmlFile() {
             }
             const sheets1 = xmlDoc1.querySelectorAll('sheets sheet');
             const sheets2 = xmlDoc2.querySelectorAll('sheets sheet');
-            
             const baseFile = file1 || { name: '基準XML', size: xml1.length };
-            console.log('XMLデータ保存完了:', {
-                file1Length: xml1.length,
-                file2Length: xml2.length,
-                hasXmlData1: !!xmlData1,
-                hasXmlData2: !!xmlData2,
-                file1Name: baseFile.name,
-                file2Name: file2.name,
-                totalSheets1: sheets1.length,
-                totalSheets2: sheets2.length
-            });
-            
-            const sheetInfo1 = Array.from(sheets1).map((sheet, index) => {
-                const sheetName = sheet.querySelector('defSheetName')?.textContent || `シート${index + 1}`;
-                const clusters = sheet.querySelectorAll('clusters cluster');
-                const sheetBackground = sheet.querySelector('backgroundImage')?.textContent;
-                const rootBackground = xmlDoc1.querySelector('backgroundImage')?.textContent;
-                return {
-                    index: index,
-                    sheetName: sheetName,
-                    clusterCount: clusters.length,
-                    hasSheetBackground: !!sheetBackground,
-                    hasRootBackground: !!rootBackground,
-                    width: parseFloat(sheet.querySelector('width')?.textContent || '595.32'),
-                    height: parseFloat(sheet.querySelector('height')?.textContent || '841.92')
-                };
-            });
-            
-            const sheetInfo2 = Array.from(sheets2).map((sheet, index) => {
-                const sheetName = sheet.querySelector('defSheetName')?.textContent || `シート${index + 1}`;
-                const clusters = sheet.querySelectorAll('clusters cluster');
-                const sheetBackground = sheet.querySelector('backgroundImage')?.textContent;
-                const rootBackground = xmlDoc2.querySelector('backgroundImage')?.textContent;
-                return {
-                    index: index,
-                    sheetName: sheetName,
-                    clusterCount: clusters.length,
-                    hasSheetBackground: !!sheetBackground,
-                    hasRootBackground: !!rootBackground,
-                    width: parseFloat(sheet.querySelector('width')?.textContent || '595.32'),
-                    height: parseFloat(sheet.querySelector('height')?.textContent || '841.92')
-                };
-            });
-            
-            console.log('基準XML 全シート情報:', sheetInfo1);
-            console.log('比較XML 全シート情報:', sheetInfo2);
-            
+            console.log('XMLデータ保存完了:', { file1Length: xml1.length, file2Length: xml2.length, file1Name: baseFile.name, file2Name: file2.name, totalSheets1: sheets1.length, totalSheets2: sheets2.length });
+
             if (baseFile.name === file2.name) {
-                        console.log('同じファイル名が比較されました。完全一致として処理します。');
-                        const sameFileResult = {
-                            differences: [],
-                            matches: ['同じファイル名のため完全一致'],
-                            summary: {
-                                totalDifferences: 0,
-                                totalMatches: 1,
-                                totalComparisons: 1
-                            },
-                            structure: {
-                                sheets: { ref: 0, up: 0, match: true },
-                                clusters: { ref: 0, up: 0, match: true },
-                                actions: { ref: 0, up: 0, match: true },
-                                dates: { ref: 0, up: 0, match: true },
-                                numerics: { ref: 0, up: 0, match: true },
-                                calculates: { ref: 0, up: 0, match: true },
-                                networks: { ref: 0, up: 0, match: true },
-                                valueLinks: { ref: 0, up: 0, match: true },
-                                customMasters: { ref: 0, up: 0, match: true },
-                                multipleChoices: { ref: 0, up: 0, match: true },
-                                selectMasters: { ref: 0, up: 0, match: true }
-                            }
-                        };
-                        displayResults(sameFileResult);
-                    } else {
-                        const comparisonResult = performXmlComparison(xml1, xml2);
-                        displayResults(comparisonResult);
+                const sameFileResult = {
+                    differences: [],
+                    matches: ['同じファイル名のため完全一致'],
+                    summary: { totalDifferences: 0, totalMatches: 1, totalComparisons: 1 },
+                    structure: {
+                        sheets: { ref: 0, up: 0, match: true },
+                        clusters: { ref: 0, up: 0, match: true },
+                        actions: { ref: 0, up: 0, match: true },
+                        dates: { ref: 0, up: 0, match: true },
+                        numerics: { ref: 0, up: 0, match: true },
+                        calculates: { ref: 0, up: 0, match: true },
+                        networks: { ref: 0, up: 0, match: true },
+                        valueLinks: { ref: 0, up: 0, match: true },
+                        customMasters: { ref: 0, up: 0, match: true },
+                        multipleChoices: { ref: 0, up: 0, match: true },
+                        selectMasters: { ref: 0, up: 0, match: true }
                     }
-                    
-                    // デフォルトで比較表示を選択
-                    document.getElementById('pdfFileSelect').value = 'compare';
-                    
-                    // PDF背景を自動表示
-                    autoDisplayPdfBackground();
-                    
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('results').style.display = 'block';
-                    
-                    // PDFレイアウトとネットワーク情報を更新
-                    setTimeout(() => {
-                        // デフォルトでクラスター設定タブをアクティブにする
-                        const pdfLayoutTab = document.getElementById('pdf-layoutTab');
-                        const networkLayoutTab = document.getElementById('network-layoutTab');
-                        if (pdfLayoutTab) {
-                            pdfLayoutTab.classList.add('active');
-                        }
-                        if (networkLayoutTab) {
-                            networkLayoutTab.classList.remove('active');
-                        }
-                        
-                        // PDFレイアウトを更新
-                        updatePdfLayout();
-                        
-                        // ネットワーク情報を更新
-                        updateNetworkLayout();
-                    }, 100);
-                } catch (error) {
-                    console.error('比較エラー:', error);
-                    console.error('エラースタック:', error.stack);
-                    console.error('XMLデータ1の長さ:', xml1?.length);
-                    console.error('XMLデータ2の長さ:', xml2?.length);
-                    
-                    let errorMessage = 'ファイルの比較中にエラーが発生しました。\n\n';
-                    errorMessage += `エラー詳細: ${error.message}\n`;
-                    errorMessage += `エラータイプ: ${error.name}\n`;
-                    
-                    if (xml1 && xml2) {
-                        errorMessage += `\nXMLデータ1の長さ: ${xml1.length} 文字\n`;
-                        errorMessage += `XMLデータ2の長さ: ${xml2.length} 文字\n`;
-                        
-                        // XMLの基本構造をチェック
-                        try {
-                            const parser = new DOMParser();
-                            const doc1 = parser.parseFromString(xml1, 'text/xml');
-                            const doc2 = parser.parseFromString(xml2, 'text/xml');
-                            
-                            const parserError1 = doc1.querySelector('parsererror');
-                            const parserError2 = doc2.querySelector('parsererror');
-                            
-                            if (parserError1) {
-                                errorMessage += `\n基準XMLの解析エラー: ${parserError1.textContent}\n`;
-                            }
-                            if (parserError2) {
-                                errorMessage += `\n比較XMLの解析エラー: ${parserError2.textContent}\n`;
-                            }
-                            
-                            // 基本的な要素の存在確認
-                            const sheets1 = doc1.querySelectorAll('sheets sheet');
-                            const sheets2 = doc2.querySelectorAll('sheets sheet');
-                            const clusters1 = doc1.querySelectorAll('clusters cluster');
-                            const clusters2 = doc2.querySelectorAll('clusters cluster');
-                            
-                            errorMessage += `\n基準XML - シート数: ${sheets1.length}, クラスター数: ${clusters1.length}\n`;
-                            errorMessage += `比較XML - シート数: ${sheets2.length}, クラスター数: ${clusters2.length}\n`;
-                            
-                        } catch (parseError) {
-                            errorMessage += `\nXML解析時のエラー: ${parseError.message}\n`;
-                        }
-                    }
-                    
-                    // デバッグ情報を表示
-                    showDebugInfo(error, xml1, xml2);
-                    
-                    alert(errorMessage);
-                    document.getElementById('loading').style.display = 'none';
-                }
+                };
+                displayResults(sameFileResult);
+            } else {
+                const comparisonResult = performXmlComparison(xml1, xml2);
+                displayResults(comparisonResult);
+            }
+            document.getElementById('pdfFileSelect').value = 'compare';
+            autoDisplayPdfBackground();
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+            setTimeout(() => {
+                const pdfLayoutTab = document.getElementById('pdf-layoutTab');
+                const networkLayoutTab = document.getElementById('network-layoutTab');
+                if (pdfLayoutTab) pdfLayoutTab.classList.add('active');
+                if (networkLayoutTab) networkLayoutTab.classList.remove('active');
+                updatePdfLayout();
+                updateNetworkLayout();
+            }, 100);
+        } catch (error) {
+            console.error('比較エラー:', error);
+            let errorMessage = 'ファイルの比較中にエラーが発生しました。\n\n' + `エラー詳細: ${error.message}\n`;
+            if (xmlData1 && xml2) {
+                errorMessage += `\nXMLデータ1の長さ: ${xmlData1.length} 文字\nXMLデータ2の長さ: ${xml2.length} 文字\n`;
+            }
+            showDebugInfo(error, xmlData1, xml2);
+            alert(errorMessage);
+            document.getElementById('loading').style.display = 'none';
+        }
     };
     reader2.readAsText(file2);
 }
@@ -2292,10 +2170,91 @@ function updateNetworkModal() {
             <div class="network-detail-panel" data-tab-index="${tabIndex}" style="${displayStyle}">
         `;
         
-        // 基本情報セクション
+        // 基準XML vs 比較XML をクラスター設定と同様に先頭で表示
+        const formatClusterVal = (id, name) => {
+            if (!id || id === '存在しない') return id || 'なし';
+            return `${id}${name ? ` (${name})` : ''}`;
+        };
+        const refPrev = formatClusterVal(details.ref_prevClusterId, details.ref_prevClusterName);
+        const refNext = formatClusterVal(details.ref_nextClusterId, details.ref_nextClusterName);
+        const compPrev = formatClusterVal(details.prevClusterId, details.prevClusterName);
+        const compNext = formatClusterVal(details.nextClusterId, details.nextClusterName);
+        const hasDiff = details.hasDifferences && details.differences && details.differences.length > 0;
+        
         html += `
             <div class="network-info-section">
-                <h4>📋 基本情報</h4>
+                <h4>📋 基準XML vs 比較XML</h4>
+                <table class="network-comparison-table">
+                    <thead>
+                        <tr>
+                            <th>設定項目</th>
+                            <th>基準XML</th>
+                            <th>比較XML</th>
+                            <th>状態</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>先行クラスター</strong></td>
+                            <td>${refPrev === '存在しない' ? `<span class="network-value-missing">${refPrev}</span>` : refPrev}</td>
+                            <td>${compPrev === '存在しない' ? `<span class="network-value-missing">${compPrev}</span>` : compPrev}</td>
+                            <td>${(details.ref_prevClusterId !== details.prevClusterId) ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>後続クラスター</strong></td>
+                            <td>${refNext === '存在しない' ? `<span class="network-value-missing">${refNext}</span>` : refNext}</td>
+                            <td>${compNext === '存在しない' ? `<span class="network-value-missing">${compNext}</span>` : compNext}</td>
+                            <td>${(details.ref_nextClusterId !== details.nextClusterId) ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>後続への自動表示追加</strong></td>
+                            <td>${details.ref_skipFormatted != null ? details.ref_skipFormatted : 'なし'}</td>
+                            <td>${details.skipFormatted != null ? details.skipFormatted : 'なし'}</td>
+                            <td>${(details.ref_skip !== details.skip) ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>入力制限</strong></td>
+                            <td>${details.ref_conditionFormatted != null ? details.ref_conditionFormatted : '制限なし'}</td>
+                            <td>${details.conditionFormatted != null ? details.conditionFormatted : '制限なし'}</td>
+                            <td>${(details.ref_condition !== details.condition) ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>バリューリンク数</strong></td>
+                            <td>${details.ref_valueLinksCount != null ? details.ref_valueLinksCount + '個' : '0個'}</td>
+                            <td>${details.valueLinksCount != null ? details.valueLinksCount + '個' : '0個'}</td>
+                            <td>${(details.ref_valueLinksCount !== details.valueLinksCount) ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        // 差分がある場合は「何が違うか」をリストで強調表示
+        if (hasDiff) {
+            html += `
+                <div class="network-difference-section">
+                    <h4>⚠️ 差分の内容</h4>
+            `;
+            details.differences.forEach((diff, i) => {
+                html += `
+                    <div class="network-difference-item">
+                        <strong>${i + 1}.</strong> ${diff}
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        } else if (details.ref_prevClusterId !== undefined && !hasDiff) {
+            html += `
+                <div class="network-no-difference">
+                    ✅ 差分なし: 基準XMLと設定が同じです。
+                </div>
+            `;
+        }
+        
+        // 従来の基本情報（参考用・簡略表示は上で済んでいるので省略可能だが互換のため残す）
+        html += `
+            <div class="network-info-section">
+                <h4>📋 基本情報（比較XML）</h4>
                 <div class="network-info-item">
                     <span class="network-info-label">先行クラスター:</span>
                     <span class="network-info-value">${details.prevClusterId || 'なし'}${details.prevClusterName ? ` (${details.prevClusterName})` : ''}</span>
@@ -2314,188 +2273,39 @@ function updateNetworkModal() {
                 </div>
                 <div class="network-info-item">
                     <span class="network-info-label">バリューリンク数:</span>
-                    <span class="network-info-value">${details.valueLinksCount || '0'}個</span>
+                    <span class="network-info-value">${details.valueLinksCount != null ? details.valueLinksCount : '0'}個</span>
                 </div>
             </div>
         `;
         
-            // 差分がある場合
-    if (details.hasDifferences && details.differences && details.differences.length > 0) {
-                // 差分情報セクション
-                html += `
-                    <div class="network-difference-section">
-                        <h4>⚠️ 差分情報</h4>
-                `;
-                
-        details.differences.forEach((diff, i) => {
-                    html += `
-                        <div class="network-difference-item">
-                            <strong>${i + 1}.</strong> ${diff}
-                        </div>
-                    `;
-                });
-                
-                html += `</div>`;
-                
-                // 比較テーブルセクション
-                html += `
-                    <div class="network-info-section">
-                        <h4>📊 基準XMLとの比較</h4>
-                        <table class="network-comparison-table">
-                            <thead>
-                                <tr>
-                                    <th>設定項目</th>
-                                    <th>基準XML</th>
-                                    <th>比較XML</th>
-                                    <th>状態</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-                
-                // 各項目を比較
-                const formatClusterValue = (id, name) => {
-                    if (!id || id === '存在しない') return id || 'なし';
-                    return `${id}${name ? ` (${name})` : ''}`;
-                };
-                
-                const items = [
-                    { 
-                        label: '先行クラスター', 
-                        ref: formatClusterValue(details.ref_prevClusterId, details.ref_prevClusterName), 
-                        comp: formatClusterValue(details.prevClusterId, details.prevClusterName),
-                        refRaw: details.ref_prevClusterId,
-                        compRaw: details.prevClusterId
-                    },
-                    { 
-                        label: '後続クラスター', 
-                        ref: formatClusterValue(details.ref_nextClusterId, details.ref_nextClusterName), 
-                        comp: formatClusterValue(details.nextClusterId, details.nextClusterName),
-                        refRaw: details.ref_nextClusterId,
-                        compRaw: details.nextClusterId
-                    },
-                    { 
-                        label: '後続クラスターへの自動表示追加', 
-                        ref: details.ref_skipFormatted || 'しない', 
-                        comp: details.skipFormatted || 'しない',
-                        refRaw: details.ref_skip,
-                        compRaw: details.skip
-                    },
-                    { 
-                        label: '入力制限', 
-                        ref: details.ref_conditionFormatted || '制限なし', 
-                        comp: details.conditionFormatted || '制限なし',
-                        refRaw: details.ref_condition,
-                        compRaw: details.condition
-                    },
-                    { 
-                        label: 'バリューリンク数', 
-                        ref: `${details.ref_valueLinksCount || '0'}個`, 
-                        comp: `${details.valueLinksCount || '0'}個`,
-                        refRaw: details.ref_valueLinksCount,
-                        compRaw: details.valueLinksCount
-                    },
-                    { 
-                        label: '後続クラスターの自動入力開始位置', 
-                        ref: details.ref_nextAutoInputStart || '未設定', 
-                        comp: details.nextAutoInputStart || '未設定',
-                        refRaw: details.ref_nextAutoInputStart,
-                        compRaw: details.nextAutoInputStart
-                    },
-                    { 
-                        label: '後続クラスターの自動入力', 
-                        ref: details.ref_nextAutoInput || '未設定', 
-                        comp: details.nextAutoInput || '未設定',
-                        refRaw: details.ref_nextAutoInput,
-                        compRaw: details.nextAutoInput
-                    },
-                    { 
-                        label: '後続クラスターの自動入力編集', 
-                        ref: details.ref_nextAutoInputEdit || '未設定', 
-                        comp: details.nextAutoInputEdit || '未設定',
-                        refRaw: details.ref_nextAutoInputEdit,
-                        compRaw: details.nextAutoInputEdit
-                    },
-                    { 
-                        label: '必須入力設定', 
-                        ref: details.ref_noNeedToFillOut === '1' ? '必須入力なし' : (details.ref_noNeedToFillOut === '0' ? '必須入力あり' : '未設定'), 
-                        comp: details.noNeedToFillOut === '1' ? '必須入力なし' : (details.noNeedToFillOut === '0' ? '必須入力あり' : '未設定'),
-                        refRaw: details.ref_noNeedToFillOut,
-                        compRaw: details.noNeedToFillOut
+            // ネットワーク位置・制限の詳細差分（基準・比較両方ある場合のみ）
+            if (xmlData1 && xmlData2) {
+                const parser = new DOMParser();
+                const doc2 = parser.parseFromString(xmlData2, 'text/xml');
+                const networks2 = doc2.querySelectorAll('networks network');
+                if (network.index < networks2.length) {
+                    const networkElement = networks2[network.index];
+                    const positionDiff = getNetworkPositionDifference(networkElement, network.index);
+                    const restrictionDiff = getNetworkRestrictionDifference(networkElement, network.index);
+                    if (positionDiff.hasDifferences) {
+                        html += `
+                            <div class="network-difference-section">
+                                <h4>📍 ネットワーク位置の差分</h4>`;
+                        positionDiff.differences.forEach((diff, i) => {
+                            html += `<div class="network-difference-item"><strong>${i + 1}.</strong> ${diff}</div>`;
+                        });
+                        html += `</div>`;
                     }
-                ];
-                
-                items.forEach(item => {
-                    const isDifferent = item.refRaw !== item.compRaw;
-                    const refValue = item.ref || 'なし';
-                    const compValue = item.comp || 'なし';
-                    
-                    html += `
-                        <tr>
-                            <td><strong>${item.label}</strong></td>
-                            <td>${refValue === '存在しない' ? `<span class="network-value-missing">${refValue}</span>` : refValue}</td>
-                            <td>${compValue === '存在しない' ? `<span class="network-value-missing">${compValue}</span>` : compValue}</td>
-                            <td>${isDifferent ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
-                        </tr>
-                    `;
-                });
-                
-                html += `
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-        
-        // ネットワーク位置の詳細比較を追加
-        if (xmlData1 && xmlData2) {
-            const parser = new DOMParser();
-            const doc1 = parser.parseFromString(xmlData1, 'text/xml');
-            const doc2 = parser.parseFromString(xmlData2, 'text/xml');
-            const networks2 = doc2.querySelectorAll('networks network');
-            
-                    if (network.index < networks2.length) {
-                        const networkElement = networks2[network.index];
-                        const positionDiff = getNetworkPositionDifference(networkElement, network.index);
-                        const restrictionDiff = getNetworkRestrictionDifference(networkElement, network.index);
-                
-                if (positionDiff.hasDifferences) {
-                            html += `
-                                <div class="network-difference-section">
-                                    <h4>📍 ネットワーク位置の差分</h4>
-                            `;
-                    positionDiff.differences.forEach((diff, i) => {
-                                html += `
-                                    <div class="network-difference-item">
-                                        <strong>${i + 1}.</strong> ${diff}
-                                    </div>
-                                `;
-                            });
-                            html += `</div>`;
+                    if (restrictionDiff.hasDifferences) {
+                        html += `
+                            <div class="network-difference-section">
+                                <h4>🔒 ネットワーク制限設定の差分</h4>`;
+                        restrictionDiff.differences.forEach((diff, i) => {
+                            html += `<div class="network-difference-item"><strong>${i + 1}.</strong> ${diff}</div>`;
+                        });
+                        html += `</div>`;
+                    }
                 }
-                
-                if (restrictionDiff.hasDifferences) {
-                            html += `
-                                <div class="network-difference-section">
-                                    <h4>🔒 ネットワーク制限設定の差分</h4>
-                            `;
-                    restrictionDiff.differences.forEach((diff, i) => {
-                                html += `
-                                    <div class="network-difference-item">
-                                        <strong>${i + 1}.</strong> ${diff}
-                                    </div>
-                                `;
-                            });
-                            html += `</div>`;
-                }
-            }
-        }
-    } else {
-                // 差分なしの場合
-                html += `
-                    <div class="network-no-difference">
-                        ✅ 差分なし: 基準XMLと設定が同じです。
-                    </div>
-                `;
             }
             
             html += `</div>`; // network-detail-panel の閉じタグ
@@ -2688,8 +2498,10 @@ function showDebugInfo(error, xml1, xml2) {
         <h5>💡 トラブルシューティング</h5>
         <div style="background: #fff3cd; padding: 0.5rem; border-radius: 4px; margin: 0.5rem 0;">
             <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                <li>XMLの形式（ルート要素・シート構成）を確認してください</li>
+                <li>ConMas DesignerでXMLを出力し直し、再度アップロードしてください</li>
                 <li>XMLファイルが正しい形式か確認してください</li>
-                <li>ファイルサイズが適切か確認してください</li>
+                <li>ファイルサイズが適切か（最大5MB程度）確認してください</li>
                 <li>ブラウザのコンソールでエラーログを確認してください</li>
                 <li>必要に応じてファイルを再選択してください</li>
             </ul>
@@ -2770,6 +2582,8 @@ function updateSheetNavigation() {
         // 複数シートの場合のみ表示
         if (totalSheets > 1) {
             sheetSelectionContainer.style.display = 'block';
+            const sheetCountLabel = document.getElementById('sheetCountLabel');
+            if (sheetCountLabel) sheetCountLabel.textContent = `（シートが${totalSheets}件あります）`;
     
     let navHtml = '';
     for (let i = 0; i < totalSheets; i++) {
@@ -2795,6 +2609,8 @@ function updateSheetNavigation() {
             navContainerVisible.innerHTML = navHtml;
         } else {
             sheetSelectionContainer.style.display = 'none';
+            const sheetCountLabel = document.getElementById('sheetCountLabel');
+            if (sheetCountLabel) sheetCountLabel.textContent = '';
         }
     }
 }
@@ -5190,6 +5006,39 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
                 this.style.strokeWidth = '20';
             });
         });
+        
+        // 比較表示のネットワーク線（赤線・青線）にもクリックでモーダルを開く
+        const comparisonLines = viewer.querySelectorAll('.network-line-clickable');
+        comparisonLines.forEach((line) => {
+            line.style.pointerEvents = 'stroke';
+            line.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                const svg = this.closest('.network-clickable-overlay');
+                if (svg) {
+                    const networkIndex = svg.getAttribute('data-network-index');
+                    const networkDetails = svg.getAttribute('data-network-details');
+                    if (networkIndex != null && networkDetails) {
+                        try {
+                            showNetworkDifferenceDetails(parseInt(networkIndex), networkDetails);
+                        } catch (err) {
+                            console.error('showNetworkDifferenceDetails エラー:', err);
+                            alert(`ネットワーク ${parseInt(networkIndex) + 1} の詳細を表示できません: ${err.message}`);
+                        }
+                    }
+                }
+            });
+            line.addEventListener('mouseover', function(e) {
+                e.stopPropagation();
+                this.style.stroke = 'rgba(0, 123, 255, 0.4)';
+                this.style.strokeWidth = '24';
+            });
+            line.addEventListener('mouseout', function(e) {
+                e.stopPropagation();
+                this.style.stroke = 'transparent';
+                this.style.strokeWidth = '20';
+            });
+        });
     } catch (error) {
         console.error('ネットワークレイアウト表示エラー:', error);
         viewer.innerHTML = `
@@ -5321,9 +5170,91 @@ function bindUiEvents() {
         });
     });
 
-    const uploadBtn = document.getElementById('uploadCompareBtn');
-    if (uploadBtn) {
-        uploadBtn.addEventListener('click', () => {
+    // このツールの使い方モーダル（外部のお客様向け・システム解説なし）
+    const toolGuideBtn = document.getElementById('toolGuideBtn');
+    const toolGuideModal = document.getElementById('toolGuideModal');
+    const toolGuideModalBody = document.getElementById('toolGuideModalBody');
+    const toolGuideModalClose = document.getElementById('toolGuideModalClose');
+    if (toolGuideBtn && toolGuideModal && toolGuideModalBody) {
+        const toolGuideContent = `
+            <p class="tool-guide-lead">帳票定義の内容を、基準と比較して確認するためのツールです。<br>クラスター設定・ネットワーク設定の差分を、画面上一目で確認できます。</p>
+
+            <h4 class="tool-guide-section-title"><span class="tool-guide-icon" aria-hidden="true">✓</span> このツールでできること</h4>
+            <ul class="tool-guide-feature-list">
+                <li><span class="tool-guide-feature-icon">📋</span> <strong>基準の選択</strong><br>「チェックポイント」「完成版チェック」から、比較の基準となる定義を選べます。</li>
+                <li><span class="tool-guide-feature-icon">📤</span> <strong>比較ファイルの登録</strong><br>ご自身で作成・編集したXMLファイルをアップロードし、基準と比較できます。</li>
+                <li><span class="tool-guide-feature-icon">🔧</span> <strong>クラスター設定の確認</strong><br>シート上のクラスターを色で表示。クリックで詳細と基準との違いを確認できます。<br>
+                    <span class="tool-guide-legend"><span class="tool-guide-dot tool-guide-dot-ref"></span>基準</span>
+                    <span class="tool-guide-legend"><span class="tool-guide-dot tool-guide-dot-same"></span>一致</span>
+                    <span class="tool-guide-legend"><span class="tool-guide-dot tool-guide-dot-diff"></span>差分あり</span>
+                </li>
+                <li><span class="tool-guide-feature-icon">🔗</span> <strong>ネットワーク設定の確認</strong><br>クラスター間のつながりを線で表示。赤い線は設定に差分がある箇所です。クリックで内容を確認できます。<br>
+                    <span class="tool-guide-legend"><span class="tool-guide-dot tool-guide-dot-same"></span>一致</span>
+                    <span class="tool-guide-legend"><span class="tool-guide-dot tool-guide-dot-diff"></span>差分あり</span>
+                </li>
+            </ul>
+
+            <h4 class="tool-guide-section-title"><span class="tool-guide-icon tool-guide-icon-arrow" aria-hidden="true">→</span> 操作の流れ</h4>
+            <ol class="tool-guide-steps">
+                <li><span class="tool-guide-step-num">1</span> 基準XMLで「チェックポイント」または「完成版チェック」を選択</li>
+                <li><span class="tool-guide-step-num">2</span> 「比較XMLをアップロード」から、比較したいXMLファイルを選択</li>
+                <li><span class="tool-guide-step-num">3</span> 「比較を開始」をクリック</li>
+                <li><span class="tool-guide-step-num">4</span> 「クラスター設定」「ネットワーク設定」タブで結果を確認。赤い表示をクリックすると差分の詳細が表示されます</li>
+            </ol>
+            <p class="tool-guide-glossary">
+                <a href="https://manuals.i-reporter.jp/glossary" target="_blank" rel="noopener noreferrer">📖 ConMas i-Reporter 用語集</a>で、クラスター・ネットワークなどの用語を確認できます。
+            </p>
+        `;
+        toolGuideBtn.addEventListener('click', () => {
+            toolGuideModalBody.innerHTML = toolGuideContent;
+            toolGuideModal.style.display = 'block';
+        });
+        function closeToolGuideModal(e) {
+            if (!e || e.target === toolGuideModal || e.target === toolGuideModalClose) {
+                toolGuideModal.style.display = 'none';
+            }
+        }
+        if (toolGuideModalClose) toolGuideModalClose.addEventListener('click', closeToolGuideModal);
+        toolGuideModal.addEventListener('click', closeToolGuideModal);
+        const toolGuideContentEl = toolGuideModal.querySelector('.tool-guide-modal-content');
+        if (toolGuideContentEl) toolGuideContentEl.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    // XMLの出力方法モーダル（ConMas DesignerでXMLを出力する手順）
+    const xmlOutputGuideBtn = document.getElementById('xmlOutputGuideBtn');
+    const xmlOutputGuideModal = document.getElementById('xmlOutputGuideModal');
+    const xmlOutputGuideModalBody = document.getElementById('xmlOutputGuideModalBody');
+    const xmlOutputGuideModalClose = document.getElementById('xmlOutputGuideModalClose');
+    if (xmlOutputGuideBtn && xmlOutputGuideModal && xmlOutputGuideModalBody) {
+        const xmlOutputGuideContent = `
+            <p class="tool-guide-lead">このツールで比較するXMLファイルは、ConMas Designerから出力できます。</p>
+            <ol class="tool-guide-steps tool-guide-steps-xml">
+                <li class="tool-guide-step-block"><span class="tool-guide-step-num">1</span><span class="tool-guide-step-text">ConMas DesignerでExcelファイルを取り込み、帳票定義を作成・編集します。</span></li>
+                <li class="tool-guide-step-block"><span class="tool-guide-step-num">2</span><span class="tool-guide-step-text">帳票定義が完成したら、メニューから<strong>「帳票定義をローカル保存」</strong>を実行します。</span></li>
+                <li class="tool-guide-step-block"><span class="tool-guide-step-num">3</span><span class="tool-guide-step-text">XML形式でPCに保存されます。そのファイルをこのツールの「比較XMLをアップロード」で選択して比較できます。</span></li>
+            </ol>
+            <div class="tool-guide-image-wrap">
+                <img src="Material/Difinition_output.jpg" alt="帳票定義をローカル保存の操作画面" class="tool-guide-image" />
+            </div>
+        `;
+        xmlOutputGuideBtn.addEventListener('click', () => {
+            xmlOutputGuideModalBody.innerHTML = xmlOutputGuideContent;
+            xmlOutputGuideModal.style.display = 'block';
+        });
+        function closeXmlOutputGuideModal(e) {
+            if (!e || e.target === xmlOutputGuideModal || e.target === xmlOutputGuideModalClose) {
+                xmlOutputGuideModal.style.display = 'none';
+            }
+        }
+        if (xmlOutputGuideModalClose) xmlOutputGuideModalClose.addEventListener('click', closeXmlOutputGuideModal);
+        xmlOutputGuideModal.addEventListener('click', closeXmlOutputGuideModal);
+        const xmlOutputGuideContentEl = xmlOutputGuideModal.querySelector('.tool-guide-modal-content');
+        if (xmlOutputGuideContentEl) xmlOutputGuideContentEl.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    const uploadCompareBtn = document.getElementById('uploadCompareBtn');
+    if (uploadCompareBtn) {
+        uploadCompareBtn.addEventListener('click', () => {
             const input = document.getElementById('fileInput2');
             if (input) input.click();
         });

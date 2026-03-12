@@ -66,6 +66,7 @@
                     </div>
                 </div>
                 <div class="video-list">
+                    <div class="tool-guide-item" id="toolGuideBtn">📖 このツールの使い方</div>
                     <div class="video-list-title">📋 動画一覧</div>
                     
                     <div class="video-category">
@@ -83,18 +84,24 @@
                         <div class="video-item" data-video-id="group-creation" data-video-title="グループ作成">グループ作成</div>
                         <div class="video-item" data-video-id="terminal-management" data-video-title="端末管理">端末管理</div>
                     </div>
+                    <a href="https://manuals.i-reporter.jp/glossary" target="_blank" rel="noopener noreferrer" class="tool-glossary-link" id="toolGlossaryLink">📖 用語集</a>
                 </div>
             </div>
         </div>
 
         <div class="upload-section" id="uploadSection">
+            <p class="upload-section-lead">比較したい帳票定義（XML）を選び、基準と比較して差分を確認します。</p>
             <div class="upload-title">XMLファイル比較</div>
+            <div class="xml-output-guide-row">
+                <button type="button" class="xml-output-guide-btn" id="xmlOutputGuideBtn">📖 XMLの出力方法</button>
+            </div>
             
             <input type="file" id="fileInput2" class="file-input" accept=".xml" style="display:none;">
             
             <div class="file-inputs">
                 <div class="file-input-group">
                     <label for="referenceXmlSelect" class="compare-label">基準XML</label>
+                    <p class="compare-label-hint">比較の基準となる定義を選びます。チェックポイント＝確認用、完成版チェック＝完成版との比較に使います。</p>
                     <select id="referenceXmlSelect" class="reference-xml-select">
                         <option value="">読み込み中...</option>
                     </select>
@@ -102,6 +109,7 @@
                 </div>
                 <div class="file-input-group">
                     <button class="compare-btn" id="uploadCompareBtn">比較XMLをアップロード</button>
+                    <p class="compare-upload-hint">対応形式: XML、最大5MBまで</p>
                     <div class="file-info" id="fileInfo2" style="display:none;"></div>
                 </div>
             </div>
@@ -115,6 +123,7 @@
                 <div class="reference-file-details" id="referenceFileDetails"></div>
             </div>
             
+            <p class="compare-action-hint" id="compareActionHint" style="display:none;">比較するには、比較XMLをアップロードしてから「比較を開始」をクリックしてください。</p>
             <button class="compare-btn" id="compareBtn" style="display:none;">比較を開始</button>
         </div>
 
@@ -127,8 +136,8 @@
             <div class="tabs">
                 <button class="tab" data-tab="results" style="display: none;">比較結果</button>
                 <button class="tab" data-tab="structure" style="display: none;">構造比較</button>
-                <button class="tab active" data-tab="pdf-layout">クラスター設定</button>
-                <button class="tab" data-tab="network-layout">ネットワーク設定</button>
+                <button class="tab active" data-tab="pdf-layout" title="シート上の項目ごとの差分を確認">クラスター設定</button>
+                <button class="tab" data-tab="network-layout" title="つながり・遷移の差分を確認">ネットワーク設定</button>
                 <button class="tab" data-tab="settings" style="display: none;">設定</button>
             </div>
             <div class="tab-content" id="resultsTab" style="display: none;">
@@ -172,7 +181,7 @@
                 <div class="pdf-layout-viewer" id="pdfLayoutContent">
                     <div class="pdf-layout-header">
                         <h3>🔧 クラスター設定</h3>
-                        <p>比較XMLファイルから抽出したクラスター設定を可視化します。各アイコンをクリックすることでクラスター情報を確認できます。</p>
+                        <p>シート上の項目（クラスター）ごとの差分を確認できます。比較XMLから抽出したクラスター設定を可視化し、各アイコンをクリックすると詳細を確認できます。</p>
                         <p><strong>アイコンの色の解説：</strong></p>
                         <ul style="font-size: 0.9rem; margin: 0.5rem 0; padding-left: 1.2rem;">
                             <li><span style="color: #ff9500; font-weight: bold;">オレンジ</span>：基準となるクラスター</li>
@@ -216,7 +225,7 @@
                     
                     <!-- シート選択（複数シート対応） -->
                     <div class="sheet-selection-container" id="sheetSelectionContainer" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
-                        <label style="font-weight: 600; color: #495057; margin-bottom: 0.5rem; display: block;">📄 シート選択:</label>
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 0.5rem; display: block;">📄 シート選択: <span id="sheetCountLabel" class="sheet-count-label"></span></label>
                         <div class="sheet-navigation" id="sheetNavigationVisible">
                             <!-- シートボタンがここに動的に生成されます -->
                         </div>
@@ -284,7 +293,7 @@
                 <div class="network-layout-viewer" id="networkLayoutContent">
                     <div class="network-layout-header" style="margin-bottom: 1rem;">
                         <h3>🔗 ネットワーク設定</h3>
-                        <p>XMLファイルから抽出したネットワーク設定を可視化します。各ネットワーク線をクリックすることで先行・後続のネットワークとクラスターの関係を確認できます。</p>
+                        <p>クラスター間のつながり・遷移の差分を確認できます。XMLから抽出したネットワーク設定を可視化し、各ネットワーク線をクリックすると先行・後続の関係と差分内容を確認できます。</p>
                         <p><strong>線の色の解説：</strong></p>
                         <ul style="font-size: 0.9rem; margin: 0.5rem 0; padding-left: 1.2rem;">
                             <li><span style="color: #ff9500; font-weight: bold;">オレンジ線</span>：基準となるネットワーク</li>
@@ -616,6 +625,31 @@
         </div>
     </div>
 
+    <!-- このツールの使い方モーダル -->
+    <div class="tool-guide-modal" id="toolGuideModal" style="display: none;">
+        <div class="tool-guide-modal-content">
+            <div class="tool-guide-modal-header">
+                <h3>📖 このツールの使い方</h3>
+                <button class="tool-guide-modal-close" id="toolGuideModalClose">×</button>
+            </div>
+            <div class="tool-guide-modal-body" id="toolGuideModalBody">
+                <!-- 本文はJSで挿入 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- XMLの出力方法モーダル -->
+    <div class="tool-guide-modal xml-output-guide-modal" id="xmlOutputGuideModal" style="display: none;">
+        <div class="tool-guide-modal-content xml-output-guide-modal-content">
+            <div class="tool-guide-modal-header">
+                <h3>📖 XMLの出力方法</h3>
+                <button class="tool-guide-modal-close" id="xmlOutputGuideModalClose">×</button>
+            </div>
+            <div class="tool-guide-modal-body" id="xmlOutputGuideModalBody">
+                <!-- 本文はJSで挿入 -->
+            </div>
+        </div>
+    </div>
     <!-- 動画プレーヤーモーダル -->
     <div class="video-modal" id="videoModal" style="display: none;">
         <div class="video-modal-content">

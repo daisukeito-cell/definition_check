@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "build": "bun build ./src/index.html --outdir=dist --minify && bun run copy-public",
-    "copy-public": "bun scripts/copy-public.js"
+    "copy-public": "bun scripts/copy-public.js",
+    "preview": "npx serve dist -l 3000"
   },
   "dependencies": {
     "pdfjs-dist": "latest"

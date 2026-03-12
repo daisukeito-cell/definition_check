@@ -206,6 +206,54 @@ body {
     font-weight: 600;
 }
 
+.upload-title-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.upload-title-row .upload-title {
+    margin-bottom: 0;
+}
+
+.xml-output-guide-row {
+    margin-bottom: 1.25rem;
+}
+
+.xml-output-guide-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #ff9500;
+    background: #fff8f0;
+    border: 2px solid #ff9500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.xml-output-guide-btn:hover {
+    background: #ff9500;
+    color: white;
+}
+
+.tool-guide-item-inline {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.upload-section-lead {
+    color: #555;
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    text-align: center;
+}
+
 .upload-description {
     color: #666;
     margin-bottom: 2rem;
@@ -231,6 +279,25 @@ body {
     font-weight: 600;
     color: #333;
     margin-bottom: 0.25rem;
+}
+
+.compare-label-hint,
+.compare-upload-hint {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 0.35rem;
+    max-width: 320px;
+    text-align: center;
+}
+
+.compare-action-hint {
+    color: #856404;
+    background: #fff3cd;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin: 0.5rem 0 0.75rem;
+    display: inline-block;
 }
 
 .reference-xml-select {
@@ -1204,9 +1271,29 @@ body {
     font-size: 1.1rem;
     color: #333;
     margin-bottom: 1rem;
+    margin-top: 0.8rem;
     font-weight: 600;
     border-bottom: 2px solid #ff9500;
     padding-bottom: 0.5rem;
+}
+
+.tool-guide-item {
+    padding: 0.6rem;
+    margin-bottom: 0.3rem;
+    background: linear-gradient(135deg, #fff8f0 0%, #fff0e0 100%);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-left: 3px solid #ff9500;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.tool-guide-item:hover {
+    background: linear-gradient(135deg, #fff0e0 0%, #ffe0c8 100%);
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(255, 149, 0, 0.2);
 }
 
 .video-category {
@@ -2037,6 +2124,12 @@ body {
     color: #155724;
 }
 
+.sheet-count-label {
+    font-weight: normal;
+    color: #666;
+    font-size: 0.9em;
+}
+
 .reference-pdf {
     display: flex;
     align-items: center;
@@ -2152,6 +2245,282 @@ body {
 .video-modal-body video {
     border-radius: 8px;
     background: #000;
+}
+
+/* このツールの使い方モーダル */
+.tool-guide-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    overflow: auto;
+}
+.tool-guide-modal-content {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    margin: 3% auto;
+    max-width: 640px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+.tool-guide-modal-header {
+    background: linear-gradient(135deg, #ff9500 0%, #e68500 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.tool-guide-modal-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+}
+.tool-guide-modal-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    line-height: 1;
+}
+.tool-guide-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+.tool-guide-modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    line-height: 1.7;
+    color: #333;
+}
+.tool-guide-modal-body .tool-guide-lead {
+    font-size: 1rem;
+    color: #444;
+    margin: 0 0 1.25rem 0;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-left: 4px solid #ff9500;
+    border-radius: 0 8px 8px 0;
+    line-height: 1.6;
+}
+.tool-guide-modal-body h4 {
+    color: #333;
+    margin-top: 1.2rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.05rem;
+}
+.tool-guide-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #333;
+    margin-top: 1.25rem;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid #ff9500;
+}
+.tool-guide-section-title .tool-guide-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: #ff9500;
+    color: white;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+.tool-guide-section-title .tool-guide-icon.tool-guide-icon-arrow {
+    font-size: 0.75rem;
+}
+.tool-guide-feature-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0.5rem 0;
+}
+.tool-guide-feature-list li {
+    margin-bottom: 1rem;
+    padding: 0.75rem 0.9rem;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #eee;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.tool-guide-feature-list li:last-child {
+    margin-bottom: 0;
+}
+.tool-guide-feature-icon {
+    display: inline-block;
+    margin-right: 0.35rem;
+    font-size: 1.1rem;
+}
+.tool-guide-feature-list strong {
+    color: #222;
+}
+.tool-guide-feature-list br + span.tool-guide-legend {
+    display: inline-block;
+    margin-top: 0.5rem;
+}
+.tool-guide-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-right: 1rem;
+    font-size: 0.8rem;
+    color: #555;
+}
+.tool-guide-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+.tool-guide-dot-ref {
+    background: #ff9500;
+}
+.tool-guide-dot-same {
+    background: #007bff;
+}
+.tool-guide-dot-diff {
+    background: #dc3545;
+}
+.tool-guide-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: step;
+}
+.tool-guide-steps li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0;
+}
+.tool-guide-steps li:last-child {
+    margin-bottom: 0;
+}
+.tool-guide-step-num {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    background: #ff9500;
+    color: white;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+.tool-guide-modal-body ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+.tool-guide-modal-body li {
+    margin-bottom: 0.3rem;
+}
+.tool-guide-modal-body p {
+    margin: 0.5rem 0;
+}
+.tool-guide-modal-body code {
+    background: #f0f0f0;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.tool-guide-glossary {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #eee;
+    font-size: 0.9rem;
+}
+.tool-guide-glossary a {
+    color: #ff9500;
+    font-weight: 600;
+    text-decoration: none;
+}
+.tool-guide-glossary a:hover {
+    text-decoration: underline;
+}
+
+.tool-guide-image-wrap {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.tool-guide-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid #eee;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* XMLの出力方法モーダル：読みやすさのため幅を確保し、不自然な改行を防ぐ */
+.xml-output-guide-modal-content {
+    min-width: 420px;
+    max-width: 560px;
+}
+
+.xml-output-guide-modal .tool-guide-modal-body {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+.tool-guide-steps-xml {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    counter-reset: step;
+}
+
+.tool-guide-steps-xml .tool-guide-step-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+    padding: 0;
+    line-height: 1.65;
+}
+
+.tool-guide-steps-xml .tool-guide-step-block:last-child {
+    margin-bottom: 0;
+}
+
+.tool-guide-step-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.tool-glossary-link {
+    display: inline-block;
+    margin-top: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    background: #fff8f0;
+    border: 1px solid #ff9500;
+    border-radius: 8px;
+    color: #ff9500;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.2s, color 0.2s;
+}
+.tool-glossary-link:hover {
+    background: #ff9500;
+    color: white;
 }
 
 /* レスポンシブ対応 */
