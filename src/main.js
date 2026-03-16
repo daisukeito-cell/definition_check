@@ -2772,7 +2772,7 @@ function selectCluster(index) {
                 <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター種別:</span><span class="cluster-basic-value">${getClusterTypeJapanese(type1) || '未設定'}</span></div>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">カーボンコピー:</span><span class="cluster-basic-value">${carbonCopyTarget1 != null ? `${index}→${carbonCopyTarget1 - 1}` : '設定なし'}</span></div>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">必須の有無:</span><span class="cluster-basic-value">${required1}</span></div>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">アクション種別:</span><span class="cluster-basic-value">${actionType1}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">${isSignTypeCluster(type1) ? 'サイン種別:' : 'アクション種別:'}</span><span class="cluster-basic-value">${isSignTypeCluster(type1) ? formatSignType(actionType1) : actionType1}</span></div>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">計算式内容:</span><span class="cluster-basic-value">${formula1 || '未設定'}</span></div>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">グループID:</span><span class="cluster-basic-value">${groupId1 || '未設定'}</span></div>
             </div>
@@ -2891,6 +2891,18 @@ function selectCluster(index) {
                           extractParameter(inputParams, 'Action') || 
                           extractParameter(inputParams, 'Type') || '';
         return actionType || '未設定';
+    };
+
+    // 作成・査閲・承認クラスターかどうか（サイン種別を表示するクラスター）
+    const isSignTypeCluster = (type) => ['Create', 'Inspect', 'Approval'].includes(type || '');
+
+    // サイン種別の表示用：0→印影、1→サイン
+    const formatSignType = (value) => {
+        if (value === undefined || value === null) return '未設定';
+        const v = String(value).trim();
+        if (v === '0') return '印影';
+        if (v === '1') return 'サイン';
+        return v || '未設定';
     };
     
     // 計算式内容を取得
@@ -3164,12 +3176,15 @@ function selectCluster(index) {
         });
     }
     
-    // アクション種別（SelectMaster型の場合は比較しない）
+    // アクション種別／サイン種別（SelectMaster型の場合は比較しない）
     if (type1 !== 'SelectMaster' && type2 !== 'SelectMaster' && actionType1 !== actionType2) {
+        const signLabel = isSignTypeCluster(type1) || isSignTypeCluster(type2) ? 'サイン種別' : 'アクション種別';
+        const refVal = (isSignTypeCluster(type1) || isSignTypeCluster(type2)) ? formatSignType(actionType1) : (actionType1 || '未設定');
+        const compVal = (isSignTypeCluster(type1) || isSignTypeCluster(type2)) ? formatSignType(actionType2) : (actionType2 || '未設定');
         differenceItems.push({
-            label: 'アクション種別',
-            ref: actionType1 || '未設定',
-            comp: actionType2 || '未設定',
+            label: signLabel,
+            ref: refVal,
+            comp: compVal,
             refRaw: actionType1,
             compRaw: actionType2
         });
@@ -5169,6 +5184,12 @@ function bindUiEvents() {
             }
         });
     });
+
+    // 初期表示：クラスター設定のサムネイルと選択状態を表示
+    const initialVideoItem = document.querySelector('.video-item[data-video-id="cluster-settings"]');
+    if (initialVideoItem) {
+        selectVideo('cluster-settings', 'クラスター設定', false, initialVideoItem);
+    }
 
     // このツールの使い方モーダル（外部のお客様向け・システム解説なし）
     const toolGuideBtn = document.getElementById('toolGuideBtn');

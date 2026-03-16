@@ -292,7 +292,8 @@ export function checkClusterDifference(cluster, index, context = {}) {
         differences.push('必須の有無');
     }
     if (actionType1 !== actionType2) {
-        differences.push('アクション種別');
+        const isSignType = ['Create', 'Inspect', 'Approval'].includes(type1) || ['Create', 'Inspect', 'Approval'].includes(type2);
+        differences.push(isSignType ? 'サイン種別' : 'アクション種別');
     }
     if (formula1 !== formula2) {
         differences.push('計算式内容');
