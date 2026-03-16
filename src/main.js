@@ -222,10 +222,10 @@ async function loadReferenceXmlList() {
     if (!select) return;
     select.innerHTML = '<option value="">読み込み中...</option>';
 
-    // 基準XMLはチェックポイント・完成版チェックの2つから選択
+    // 基準XMLはSTEP.1・STEP.2の2つから選択
     const referenceOptions = [
-        { file: 'Definition_check.xml', label: 'チェックポイント' },
-        { file: 'Definition_Complet.xml', label: '完成版チェック' }
+        { file: 'Definition_check.xml', label: 'STEP.1' },
+        { file: 'Definition_Complet.xml', label: 'STEP.2' }
     ];
 
     select.innerHTML = '';
@@ -5167,13 +5167,7 @@ function bindUiEvents() {
     const videoThumb = document.getElementById('videoThumbnailContainer');
     if (videoThumb) videoThumb.addEventListener('click', playVideo);
 
-    const downloadLink = document.getElementById('downloadLink');
-    if (downloadLink) {
-        downloadLink.addEventListener('click', (event) => {
-            event.preventDefault();
-            downloadFile();
-        });
-    }
+    // 演習用定義.xlsx は href でダウンロードするため、クリック時の特別処理は不要
 
     document.querySelectorAll('.video-item').forEach((item) => {
         item.addEventListener('click', () => {
@@ -5202,7 +5196,7 @@ function bindUiEvents() {
 
             <h4 class="tool-guide-section-title"><span class="tool-guide-icon" aria-hidden="true">✓</span> このツールでできること</h4>
             <ul class="tool-guide-feature-list">
-                <li><span class="tool-guide-feature-icon">📋</span> <strong>基準の選択</strong><br>「チェックポイント」「完成版チェック」から、比較の基準となる定義を選べます。</li>
+                <li><span class="tool-guide-feature-icon">📋</span> <strong>基準の選択</strong><br>「STEP.1」「STEP.2」から、比較の基準となる定義を選べます。</li>
                 <li><span class="tool-guide-feature-icon">📤</span> <strong>比較ファイルの登録</strong><br>ご自身で作成・編集したXMLファイルをアップロードし、基準と比較できます。</li>
                 <li><span class="tool-guide-feature-icon">🔧</span> <strong>クラスター設定の確認</strong><br>シート上のクラスターを色で表示。クリックで詳細と基準との違いを確認できます。<br>
                     <span class="tool-guide-legend"><span class="tool-guide-dot tool-guide-dot-ref"></span>基準</span>
@@ -5217,7 +5211,7 @@ function bindUiEvents() {
 
             <h4 class="tool-guide-section-title"><span class="tool-guide-icon tool-guide-icon-arrow" aria-hidden="true">→</span> 操作の流れ</h4>
             <ol class="tool-guide-steps">
-                <li><span class="tool-guide-step-num">1</span> 基準XMLで「チェックポイント」または「完成版チェック」を選択</li>
+                <li><span class="tool-guide-step-num">1</span> 基準XMLで「STEP.1」または「STEP.2」を選択</li>
                 <li><span class="tool-guide-step-num">2</span> 「比較XMLをアップロード」から、比較したいXMLファイルを選択</li>
                 <li><span class="tool-guide-step-num">3</span> 「比較を開始」をクリック</li>
                 <li><span class="tool-guide-step-num">4</span> 「クラスター設定」「ネットワーク設定」タブで結果を確認。赤い表示をクリックすると差分の詳細が表示されます</li>
