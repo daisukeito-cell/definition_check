@@ -842,7 +842,7 @@ function showCompletionMessage() {
             <div class="completion-buttons">
                 <button class="action-btn danger" onclick="resetProgress(); closeCompletionModal();">進捗をリセット</button>
                 <button class="action-btn" onclick="closeCompletionModal()">閉じる</button>
-                <button class="action-btn info" onclick="goToDefinitionCheck()">帳票定義チェックを開始</button>
+                <a href="/" class="action-btn info">帳票定義チェックを開始</a>
             </div>
         </div>
     `;

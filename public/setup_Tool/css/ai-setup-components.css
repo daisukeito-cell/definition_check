@@ -1461,6 +1461,15 @@
     min-width: 150px;
 }
 
+/* ボタン風リンク（CSP で onclick が使えない場合の戻る用） */
+a.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
 .action-btn.primary {
     background: linear-gradient(135deg, #ff9500 0%, #e68500 100%);
     color: white;
