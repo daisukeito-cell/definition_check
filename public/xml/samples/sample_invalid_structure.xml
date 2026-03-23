@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <header>
+    <version>1</version>
+  </header>
+  <body>
+    <item>ルートが conmas ではなく、sheets/sheet もないため構造検証で拒否される想定</item>
+  </body>
+</root>

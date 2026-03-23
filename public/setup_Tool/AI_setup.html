@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>AI導入手順ナビゲーションガイド</title>
+    <!-- スタイルは css/ 配下（旧 styles.css は未同梱のため除去） -->
+    <link rel="stylesheet" href="css/ai-setup-base.css">
+    <link rel="stylesheet" href="css/ai-setup-components.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-text">
+                <div class="logo-text">i-Reporter</div>
+            </div>
+        </div>
+        <div class="header-title">AI導入手順ナビゲーションガイド</div>
+    </div>
+
+    <div class="ai-guide-container">
+        <div class="progress-section">
+            <div class="progress-header">
+                <h2>🚀 i-Reporter 導入手順</h2>
+                <p>AIがあなたの導入手順をナビゲーションします。各ステップを完了して、スムーズに導入を進めましょう。</p>
+            </div>
+            
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="step-header">
+                <h2 class="step-title">i-Reporter 導入手順</h2>
+                <p class="step-description">以下の3つのステップを順番に完了して、i-Reporterの導入を完了しましょう。</p>
+            </div>
+
+            <div class="all-steps-container" id="allStepsContainer">
+            </div>
+
+            <div class="progress-indicator" id="progressIndicator">
+                <div class="progress-indicator-title">進行状況</div>
+                <div class="progress-indicator-steps">
+                    <div class="progress-indicator-step pending" data-step="2" onclick="toggleStep(2)">
+                        <div class="progress-indicator-step-number">1</div>
+                        <div>ConMas Excel COM add-in</div>
+                    </div>
+                    <div class="progress-indicator-step pending" data-step="3" onclick="toggleStep(3)">
+                        <div class="progress-indicator-step-number">2</div>
+                        <div>ConMasDesigner</div>
+                    </div>
+                    <div class="progress-indicator-step pending" data-step="4" onclick="toggleStep(4)">
+                        <div class="progress-indicator-step-number">3</div>
+                        <div>i-Reporterアプリ</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="progress-indicator-toggle" id="progressIndicatorToggle" onclick="toggleProgressIndicator()">
+                📊
+            </button>
+
+        <div class="overall-progress-section">
+            <div class="overall-progress-header">
+                <h3>全体進捗</h3>
+                <div class="overall-progress-stats" id="overallProgressStats">0 / 0 項目完了</div>
+            </div>
+            <div class="overall-progress-bar-container">
+                <div class="overall-progress-bar" id="overallProgressBar">
+                    <div class="overall-progress-text" id="overallProgressText">0%</div>
+                </div>
+            </div>
+            
+            <div class="progress-actions">
+                <button class="action-btn danger" onclick="resetProgress()">
+                    <span class="btn-icon">🔄</span>
+                    進捗をリセット
+                </button>
+                <button class="action-btn info" onclick="goToDefinitionCheck()">
+                    <span class="btn-icon">📊</span>
+                    定義チェックツールに戻る
+                </button>
+                <button class="action-btn warning" onclick="openTroubleshooting()">
+                    <span class="btn-icon">🔧</span>
+                    トラブル解決
+                </button>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <div id="pdfModal" class="pdf-modal">
+        <div class="pdf-modal-content">
+            <div class="pdf-modal-header">
+                <h3 class="pdf-modal-title" id="pdfModalTitle">操作手順PDF</h3>
+                <button class="pdf-close-button" onclick="closePdfModal()">&times;</button>
+            </div>
+            <iframe id="pdfViewer" class="pdf-viewer" src=""></iframe>
+        </div>
+    </div>
+
+    <!-- AI導入手順ナビゲーションガイド - スクリプト -->
+    <script src="js/ai-setup-data.js"></script>
+    <script src="js/ai-setup-progress.js"></script>
+    <script src="js/ai-setup-ui.js"></script>
+    <script src="js/ai-setup-events.js"></script>
+    <script src="js/ai-setup-init.js"></script>
+</body>
+</html>
+

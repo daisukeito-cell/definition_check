@@ -95,9 +95,70 @@ async function loadPdfAsBase64(pdfPath) {
 let file1 = null;  // 基準は選択式のためダミー { name, size } を設定
 let file2 = null;
 
+/**
+ * 基準XMLに対応するフォールバックPDF（XMLに埋め込み背景がない場合に public/Material から読込）
+ * STEP.1 → Def_Check_1.pdf、STEP.2 → Def_Check_2.pdf
+ * @returns {string} ファイル名のみ
+ */
+function getFallbackPdfFileName() {
+    const name = file1?.name || '';
+    if (name === 'Definition_Complet.xml') return 'Def_Check_2.pdf';
+    if (name === 'Definition_check.xml') return 'Def_Check_1.pdf';
+    return 'Def_Check_1.pdf';
+}
+
+/** @returns {string} fetch 用パス（ビルド後は dist/Material/ 配下） */
+function getFallbackPdfPath() {
+    return `./Material/${getFallbackPdfFileName()}`;
+}
+
 // 基準XMLの配置先（public/xml）
 const REFERENCE_XML_BASE_URL = '/xml/';
 const REFERENCE_XML_MANIFEST_URL = '/xml/manifest.json';
+
+/** XMLアップロードの最大サイズ（5MB） */
+const MAX_XML_SIZE = 5 * 1024 * 1024;
+
+/**
+ * XSS対策: HTMLに挿入する文字列をエスケープする
+ * @param {string|number|null|undefined} str - 表示する文字列
+ * @returns {string}
+ */
+function escapeHtml(str) {
+    if (str == null || str === undefined) return '';
+    const s = String(str);
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * XXE対策: DOCTYPE/ENTITY を含むXMLは解析せず拒否する
+ * @param {string} xmlString - 解析前のXML文字列
+ * @returns {{ ok: true, data: string }|{ ok: false, error: string }}
+ */
+function sanitizeXmlForParse(xmlString) {
+    if (typeof xmlString !== 'string') {
+        return { ok: false, error: '無効なデータです。' };
+    }
+    if (xmlString.includes('<!DOCTYPE') || xmlString.includes('<!ENTITY')) {
+        return { ok: false, error: 'セキュリティのため、DOCTYPE/ENTITYを含むXMLは利用できません。' };
+    }
+    return { ok: true, data: xmlString };
+}
+
+/** クラスター詳細モーダル用：表示内容に関するユーザー向け説明（エスケープ表示の注意） */
+function getClusterModalDisplayNote() {
+    return `
+        <div class="cluster-modal-display-note" style="margin-top: 1rem; padding: 0.75rem 1rem; background: #e8f4fc; border: 1px solid #b8daff; border-radius: 6px; font-size: 0.85rem; color: #004085;">
+            💡 <strong>表示について</strong><br>
+            XMLの値に <code>&lt;</code> <code>&gt;</code> <code>&amp;</code> などの記号が含まれる場合、セキュリティのため<strong>そのまま文字として</strong>表示しています。数式（例: x&lt;y）や「A&amp;B」のような表記がそのように見えても正常です。不具合ではありません。
+        </div>
+    `;
+}
 
 // PDFレイアウト表示用のグローバル変数
 let xmlData1 = null;
@@ -194,7 +255,7 @@ function loadReferenceXmlFromSelect() {
     const info1 = document.getElementById('fileInfo1');
     if (info1) {
         info1.style.display = 'block';
-        info1.innerHTML = `<span class="file-status">基準XMLを読み込み中: ${filename}</span>`;
+        info1.innerHTML = `<span class="file-status">基準XMLを読み込み中: ${escapeHtml(filename)}</span>`;
     }
 
     fetch(REFERENCE_XML_BASE_URL + filename)
@@ -203,13 +264,28 @@ function loadReferenceXmlFromSelect() {
             return r.text();
         })
         .then(text => {
-            setReferenceXmlUi(filename, text);
+            if (text.length > MAX_XML_SIZE) {
+                xmlData1 = null;
+                file1 = null;
+                if (info1) info1.innerHTML = '<span class="file-status" style="color:#c00;">❌ 5MBを超えるXMLは読み込めません。</span>';
+                checkReady();
+                return;
+            }
+            const sanitized = sanitizeXmlForParse(text);
+            if (!sanitized.ok) {
+                xmlData1 = null;
+                file1 = null;
+                if (info1) info1.innerHTML = `<span class="file-status" style="color:#c00;">❌ ${escapeHtml(sanitized.error)}</span>`;
+                checkReady();
+                return;
+            }
+            setReferenceXmlUi(filename, sanitized.data);
             checkReady();
         })
         .catch(err => {
             xmlData1 = null;
             file1 = null;
-            if (info1) info1.innerHTML = `<span class="file-status" style="color:#c00;">❌ 読み込み失敗: ${err.message}</span>`;
+            if (info1) info1.innerHTML = `<span class="file-status" style="color:#c00;">❌ 読み込み失敗: ${escapeHtml(err.message)}</span>`;
             const refInfo = document.getElementById('referenceFileInfo');
             if (refInfo) refInfo.style.display = 'none';
             console.warn('基準XML読み込み失敗:', filename, err);
@@ -264,7 +340,7 @@ document.getElementById('fileInput2').addEventListener('change', (e) => {
         }
         if (info) {
             info.style.display = 'block';
-            info.innerHTML = `<strong>比較XML:</strong> ${file2.name} (${(file2.size / 1024).toFixed(2)} KB)`;
+            info.innerHTML = `<strong>比較XML:</strong> ${escapeHtml(file2.name)} (${(file2.size / 1024).toFixed(2)} KB)`;
         }
     }
     checkReady();
@@ -312,6 +388,18 @@ function compareXmlFile() {
         try {
             const xml1 = xmlData1;
             xml2 = e2.target.result;
+            if (xml2.length > MAX_XML_SIZE) {
+                alert('比較XMLが5MBを超えているため処理できません。');
+                document.getElementById('loading').style.display = 'none';
+                return;
+            }
+            const sanitized2 = sanitizeXmlForParse(xml2);
+            if (!sanitized2.ok) {
+                alert(sanitized2.error);
+                document.getElementById('loading').style.display = 'none';
+                return;
+            }
+            xml2 = sanitized2.data;
             xmlData2 = xml2;
             const parser = new DOMParser();
             const xmlDoc1 = parser.parseFromString(xml1, 'text/xml');
@@ -424,9 +512,10 @@ function displayResults(result) {
                 <div class="difference-list">
                     <h4>🔍 検出された差分</h4>
                     ${differences.length > 0 ? 
-                        differences.map(diff => `<div class="difference-item">${diff.description || diff}</div>`).join('') :
+                        differences.map(diff => `<div class="difference-item">${escapeHtml(diff.description || diff)}</div>`).join('') :
                         '<div class="difference-item" style="color: #2e7d32;">差分は検出されませんでした</div>'
                     }
+                    <p class="difference-list-note" style="margin-top: 0.75rem; font-size: 0.8rem; color: #6c757d;">※ 値に &lt; &gt; &amp; などの記号がそのまま表示される場合があります。セキュリティのため文字として表示しているもので、不具合ではありません。</p>
                 </div>
             `;
         }
@@ -638,31 +727,31 @@ function loadReferencePdfLayout() {
                 <div style="text-align: center; padding: 2rem;">
                     <h3 style="color: #28a745; margin-bottom: 1rem;">📄 基準ファイルPDFレイアウト</h3>
                     <p style="color: #155724; margin-bottom: 1rem;">
-                        <strong>演習用定義_完成版.pdf</strong> が基準として設定されています
+                        基準XMLで <strong>STEP.1</strong> のとき <strong>Def_Check_1.pdf</strong>、<strong>STEP.2</strong> のとき <strong>Def_Check_2.pdf</strong>（<code>Material</code> フォルダ）を背景として使用します。
                     </p>
                     <div style="background: #e8f5e8; border: 2px solid #28a745; border-radius: 10px; padding: 1rem; margin: 1rem 0;">
                         <strong>📋 基準ファイル情報:</strong>
                         <ul style="text-align: left; margin: 1rem 0; padding-left: 1.5rem; color: #155724;">
-                            <li>ファイル名: exercise_definition_complete.xml</li>
-                            <li>PDFレイアウト: 演習用定義_完成版.pdf</li>
-                            <li>状態: 基準ファイルとして自動設定済み</li>
+                            <li>STEP.1: Definition_check.xml → Def_Check_1.pdf</li>
+                            <li>STEP.2: Definition_Complet.xml → Def_Check_2.pdf</li>
+                            <li>XMLに背景が埋め込まれている場合はそちらを優先します</li>
                         </ul>
                     </div>
 
                     <p style="color: #666; font-size: 0.9rem;">
-                        比較用XMLファイルを選択すると、このPDFレイアウト上にクラスターが配置されます
+                        比較用XMLを選択して「比較を開始」すると、上記PDFレイアウト上にクラスターが配置されます
                     </p>
                 </div>
             </div>
         `;
     }
     
-    // PDF情報を更新
+    // PDF情報を更新（プレースホルダー：実際の表示は比較開始後に更新）
     if (document.getElementById('pdfSheetName')) {
-        document.getElementById('pdfSheetName').textContent = '演習用定義_完成版';
+        document.getElementById('pdfSheetName').textContent = 'STEP.1 / STEP.2 を選択';
     }
     if (document.getElementById('pdfBackground')) {
-        document.getElementById('pdfBackground').textContent = '演習用定義_完成版.pdf';
+        document.getElementById('pdfBackground').textContent = 'Def_Check_1 / Def_Check_2.pdf';
     }
 }
 
@@ -774,7 +863,7 @@ function displayPdfBackgroundFromXml(backgroundImage, width, height) {
                     z-index: 3;
                     pointer-events: none;
                 ">
-                    📄 演習用定義_完成版.pdf
+                    📄 XML内埋め込み背景
                 </div>
             </div>
         `;
@@ -916,7 +1005,7 @@ function displayDefaultPdfBackground() {
                 z-index: 3;
                 pointer-events: none;
             ">
-                📄 演習用定義_完成版.pdf (デフォルト背景)
+                📄 ${escapeHtml(getFallbackPdfFileName())}（デフォルト背景・未埋め込み時はこのPDFを読込）
             </div>
         </div>
     `;
@@ -1325,7 +1414,7 @@ async function generatePdfLayout(xmlData, displayMode, scale, fileSelect) {
     const sheetName = sheet.querySelector('defSheetName')?.textContent || `シート${currentSheetIndex + 1}`;
     document.getElementById('pdfSize').textContent = `${width.toFixed(1)} × ${height.toFixed(1)} pt (A4)`;
     document.getElementById('pdfClusterCount').textContent = clusters.length + '個';
-    document.getElementById('pdfBackground').textContent = referenceBackgroundImage ? '基準PDFあり' : 'なし';
+    document.getElementById('pdfBackground').textContent = referenceBackgroundImage ? '基準PDFあり' : getFallbackPdfFileName();
     
     // シート名も表示
     const sheetNameElement = document.getElementById('pdfSheetName');
@@ -1389,9 +1478,9 @@ async function generatePdfLayout(xmlData, displayMode, scale, fileSelect) {
                 `;
             }
         } else {
-            // XMLに背景がない場合は外部PDFを試行
+            // XMLに背景がない場合は Material 内の Def_Check PDF を試行
             try {
-                const pdfBase64 = await loadPdfAsBase64('./定義作成/演習用定義_完成版.pdf');
+                const pdfBase64 = await loadPdfAsBase64(getFallbackPdfPath());
                 if (pdfBase64) {
                     layoutHtml += `
                         <div id="pdfBackgroundSingle" style="position:absolute;top:0;left:0;width:${scaledWidth}px;height:${scaledHeight}px;background:white;z-index:1;overflow:hidden;">
@@ -2007,7 +2096,7 @@ function generateNetworkLayout(xmlData) {
         // クラスターの枠を表示（背景の上に z-index: 2）
         layoutHtml += `
             <div style="position: absolute; left: ${left * optimalScale}px; top: ${top * optimalScale}px; width: ${clusterWidth * optimalScale}px; height: ${clusterHeight * optimalScale}px; border: 2px solid #6c757d; background: transparent; border-radius: 5px; z-index: 2;"
-                 title="${name}">
+                 title="${escapeHtml(name)}">
             </div>
         `;
         
@@ -2257,19 +2346,19 @@ function updateNetworkModal() {
                 <h4>📋 基本情報（比較XML）</h4>
                 <div class="network-info-item">
                     <span class="network-info-label">先行クラスター:</span>
-                    <span class="network-info-value">${details.prevClusterId || 'なし'}${details.prevClusterName ? ` (${details.prevClusterName})` : ''}</span>
+                    <span class="network-info-value">${escapeHtml(details.prevClusterId || 'なし')}${details.prevClusterName ? ` (${escapeHtml(details.prevClusterName)})` : ''}</span>
                 </div>
                 <div class="network-info-item">
                     <span class="network-info-label">後続クラスター:</span>
-                    <span class="network-info-value">${details.nextClusterId || 'なし'}${details.nextClusterName ? ` (${details.nextClusterName})` : ''}</span>
+                    <span class="network-info-value">${escapeHtml(details.nextClusterId || 'なし')}${details.nextClusterName ? ` (${escapeHtml(details.nextClusterName)})` : ''}</span>
                 </div>
                 <div class="network-info-item">
                     <span class="network-info-label">後続クラスターへの自動表示追加:</span>
-                    <span class="network-info-value">${details.skipFormatted || 'しない'}</span>
+                    <span class="network-info-value">${escapeHtml(details.skipFormatted || 'しない')}</span>
                 </div>
                 <div class="network-info-item">
                     <span class="network-info-label">入力制限:</span>
-                    <span class="network-info-value">${details.conditionFormatted || '制限なし'}</span>
+                    <span class="network-info-value">${escapeHtml(details.conditionFormatted || '制限なし')}</span>
                 </div>
                 <div class="network-info-item">
                     <span class="network-info-label">バリューリンク数:</span>
@@ -2292,7 +2381,7 @@ function updateNetworkModal() {
                             <div class="network-difference-section">
                                 <h4>📍 ネットワーク位置の差分</h4>`;
                         positionDiff.differences.forEach((diff, i) => {
-                            html += `<div class="network-difference-item"><strong>${i + 1}.</strong> ${diff}</div>`;
+                            html += `<div class="network-difference-item"><strong>${i + 1}.</strong> ${escapeHtml(diff)}</div>`;
                         });
                         html += `</div>`;
                     }
@@ -2301,7 +2390,7 @@ function updateNetworkModal() {
                             <div class="network-difference-section">
                                 <h4>🔒 ネットワーク制限設定の差分</h4>`;
                         restrictionDiff.differences.forEach((diff, i) => {
-                            html += `<div class="network-difference-item"><strong>${i + 1}.</strong> ${diff}</div>`;
+                            html += `<div class="network-difference-item"><strong>${i + 1}.</strong> ${escapeHtml(diff)}</div>`;
                         });
                         html += `</div>`;
                     }
@@ -2436,9 +2525,9 @@ function showDebugInfo(error, xml1, xml2) {
         <div style="font-family: monospace; font-size: 0.9rem;">
             <h5>🚨 エラー詳細</h5>
             <div style="background: #fff3cd; padding: 0.5rem; border-radius: 4px; margin: 0.5rem 0;">
-                <strong>エラーメッセージ:</strong> ${error.message || '不明'}<br>
-                <strong>エラータイプ:</strong> ${error.name || '不明'}<br>
-                <strong>エラースタック:</strong> ${error.stack ? error.stack.substring(0, 500) + '...' : '不明'}
+                <strong>エラーメッセージ:</strong> ${escapeHtml(error.message || '不明')}<br>
+                <strong>エラータイプ:</strong> ${escapeHtml(error.name || '不明')}<br>
+                <strong>エラースタック:</strong> ${escapeHtml(error.stack ? error.stack.substring(0, 500) + '...' : '不明')}
             </div>
             
             <h5>📊 XMLデータ情報</h5>
@@ -2463,10 +2552,10 @@ function showDebugInfo(error, xml1, xml2) {
             `;
             
             if (parserError1) {
-                debugHtml += `<strong>基準XML解析エラー:</strong> ${parserError1.textContent}<br>`;
+                debugHtml += `<strong>基準XML解析エラー:</strong> ${escapeHtml(parserError1.textContent)}<br>`;
             }
             if (parserError2) {
-                debugHtml += `<strong>比較XML解析エラー:</strong> ${parserError2.textContent}<br>`;
+                debugHtml += `<strong>比較XML解析エラー:</strong> ${escapeHtml(parserError2.textContent)}<br>`;
             }
             
             if (!parserError1 && !parserError2) {
@@ -2488,7 +2577,7 @@ function showDebugInfo(error, xml1, xml2) {
             debugHtml += `
                 <h5>🔍 XML解析状況</h5>
                 <div style="background: #f8d7da; padding: 0.5rem; border-radius: 4px; margin: 0.5rem 0;">
-                    <strong>解析エラー:</strong> ${parseError.message}
+                    <strong>解析エラー:</strong> ${escapeHtml(parseError.message)}
                 </div>
             `;
         }
@@ -2768,21 +2857,21 @@ function selectCluster(index) {
             <div class="cluster-basic-info">
                 <h4>📋 基本情報</h4>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">クラスターINDEX:</span><span class="cluster-basic-value">${index}</span></div>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター名称:</span><span class="cluster-basic-value">${name1 || '未設定'}</span></div>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター種別:</span><span class="cluster-basic-value">${getClusterTypeJapanese(type1) || '未設定'}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター名称:</span><span class="cluster-basic-value">${escapeHtml(name1 || '未設定')}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター種別:</span><span class="cluster-basic-value">${escapeHtml(getClusterTypeJapanese(type1) || '未設定')}</span></div>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">カーボンコピー:</span><span class="cluster-basic-value">${carbonCopyTarget1 != null ? `${index}→${carbonCopyTarget1 - 1}` : '設定なし'}</span></div>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">必須の有無:</span><span class="cluster-basic-value">${required1}</span></div>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">${isSignTypeCluster(type1) ? 'サイン種別:' : 'アクション種別:'}</span><span class="cluster-basic-value">${isSignTypeCluster(type1) ? formatSignType(actionType1) : actionType1}</span></div>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">計算式内容:</span><span class="cluster-basic-value">${formula1 || '未設定'}</span></div>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">グループID:</span><span class="cluster-basic-value">${groupId1 || '未設定'}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">必須の有無:</span><span class="cluster-basic-value">${escapeHtml(required1)}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">${escapeHtml(isSignTypeCluster(type1) ? 'サイン種別:' : 'アクション種別:')}</span><span class="cluster-basic-value">${escapeHtml(isSignTypeCluster(type1) ? formatSignType(actionType1) : actionType1)}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">計算式内容:</span><span class="cluster-basic-value">${escapeHtml(formula1 || '未設定')}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">グループID:</span><span class="cluster-basic-value">${escapeHtml(groupId1 || '未設定')}</span></div>
             </div>
         `;
         if (customMasterInfo1) {
             html += `
                 <div class="cluster-basic-info" style="margin-top: 1rem;">
                     <h4>📌 カスタムマスター</h4>
-                    <div class="cluster-basic-item"><span class="cluster-basic-label">マスター名称:</span><span class="cluster-basic-value">${customMasterInfo1.masterName}</span></div>
-                    <div class="cluster-basic-item"><span class="cluster-basic-label">マスターフィールド:</span><span class="cluster-basic-value">${customMasterInfo1.masterFieldName || '未設定'}</span></div>
+                    <div class="cluster-basic-item"><span class="cluster-basic-label">マスター名称:</span><span class="cluster-basic-value">${escapeHtml(customMasterInfo1.masterName)}</span></div>
+                    <div class="cluster-basic-item"><span class="cluster-basic-label">マスターフィールド:</span><span class="cluster-basic-value">${escapeHtml(customMasterInfo1.masterFieldName || '未設定')}</span></div>
                 </div>
             `;
         }
@@ -2790,8 +2879,8 @@ function selectCluster(index) {
             html += `
                 <div class="cluster-basic-info" style="margin-top: 1rem;">
                     <h4>🔗 子クラスター情報</h4>
-                    <div class="cluster-basic-item"><span class="cluster-basic-label">マスターキー:</span><span class="cluster-basic-value">${childInfo1.masterKey || '未設定'}</span></div>
-                    <div class="cluster-basic-item"><span class="cluster-basic-label">ターゲットフィールド:</span><span class="cluster-basic-value">${childInfo1.targetFieldName || '未設定'}</span></div>
+                    <div class="cluster-basic-item"><span class="cluster-basic-label">マスターキー:</span><span class="cluster-basic-value">${escapeHtml(childInfo1.masterKey || '未設定')}</span></div>
+                    <div class="cluster-basic-item"><span class="cluster-basic-label">ターゲットフィールド:</span><span class="cluster-basic-value">${escapeHtml(childInfo1.targetFieldName || '未設定')}</span></div>
                 </div>
             `;
         }
@@ -2800,11 +2889,12 @@ function selectCluster(index) {
                 <div class="cluster-basic-info" style="margin-top: 1rem;">
                     <h4>📝 選択肢</h4>
                     <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                        ${choices1.map((c, i) => `<li>選択肢${i + 1}: ${c.label} (値: ${c.value}, 選択: ${c.selected === 'true' ? 'あり' : 'なし'})</li>`).join('')}
+                        ${choices1.map((c, i) => `<li>選択肢${i + 1}: ${escapeHtml(c.label)} (値: ${escapeHtml(c.value)}, 選択: ${c.selected === 'true' ? 'あり' : 'なし'})</li>`).join('')}
                     </ul>
                 </div>
             `;
         }
+        html += getClusterModalDisplayNote();
         modalBody.innerHTML = html;
         modal.style.display = 'block';
         return;
@@ -3122,13 +3212,13 @@ function selectCluster(index) {
             </div>
             <div class="cluster-basic-item">
                 <span class="cluster-basic-label">クラスター名称:</span>
-                <span class="cluster-basic-value">${name2 || (cluster2 ? '未設定' : '存在しません')}</span>
-                ${nameDiff ? '<span style="color: #dc3545; margin-left: 0.5rem;">⚠️ 基準XML: ' + (name1 || '未設定') + '</span>' : ''}
+                <span class="cluster-basic-value">${escapeHtml(name2 || (cluster2 ? '未設定' : '存在しません'))}</span>
+                ${nameDiff ? '<span style="color: #dc3545; margin-left: 0.5rem;">⚠️ 基準XML: ' + escapeHtml(name1 || '未設定') + '</span>' : ''}
             </div>
             <div class="cluster-basic-item">
                 <span class="cluster-basic-label">クラスター種別:</span>
-                <span class="cluster-basic-value">${getClusterTypeJapanese(type2) || (cluster2 ? '未設定' : '存在しません')}</span>
-                ${typeDiff ? '<span style="color: #dc3545; margin-left: 0.5rem;">⚠️ 基準XML: ' + getClusterTypeJapanese(type1) + '</span>' : ''}
+                <span class="cluster-basic-value">${escapeHtml(getClusterTypeJapanese(type2) || (cluster2 ? '未設定' : '存在しません'))}</span>
+                ${typeDiff ? '<span style="color: #dc3545; margin-left: 0.5rem;">⚠️ 基準XML: ' + escapeHtml(getClusterTypeJapanese(type1)) + '</span>' : ''}
             </div>
             <div class="cluster-basic-item">
                 <span class="cluster-basic-label">カーボンコピー:</span>
@@ -3336,17 +3426,17 @@ function selectCluster(index) {
                 // 選択肢の詳細表示
                 html += `
                     <div class="cluster-difference-item">
-                        <div class="cluster-difference-item-label">${item.label}</div>
+                        <div class="cluster-difference-item-label">${escapeHtml(item.label)}</div>
                         <div class="cluster-difference-item-value">
-                            <strong>基準XML:</strong> ${item.ref}<br>
-                            <strong>比較XML:</strong> ${item.comp}
+                            <strong>基準XML:</strong> ${escapeHtml(item.ref)}<br>
+                            <strong>比較XML:</strong> ${escapeHtml(item.comp)}
                         </div>
                         <div style="margin-top: 0.75rem;">
                             <strong>基準XMLの選択肢:</strong>
                             <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
                                 ${item.refRaw.length > 0 ? 
                                     item.refRaw.map((choice, i) => 
-                                        `<li>選択肢${i + 1}: ${choice.label} (値: ${choice.value}, 選択: ${choice.selected === 'true' ? 'あり' : 'なし'})</li>`
+                                        `<li>選択肢${i + 1}: ${escapeHtml(choice.label)} (値: ${escapeHtml(choice.value)}, 選択: ${choice.selected === 'true' ? 'あり' : 'なし'})</li>`
                                     ).join('') : 
                                     '<li>選択肢なし</li>'
                                 }
@@ -3355,7 +3445,7 @@ function selectCluster(index) {
                             <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
                                 ${item.compRaw.length > 0 ? 
                                     item.compRaw.map((choice, i) => 
-                                        `<li>選択肢${i + 1}: ${choice.label} (値: ${choice.value}, 選択: ${choice.selected === 'true' ? 'あり' : 'なし'})</li>`
+                                        `<li>選択肢${i + 1}: ${escapeHtml(choice.label)} (値: ${escapeHtml(choice.value)}, 選択: ${choice.selected === 'true' ? 'あり' : 'なし'})</li>`
                                     ).join('') : 
                                     '<li>選択肢なし</li>'
                                 }
@@ -3367,20 +3457,20 @@ function selectCluster(index) {
                 // カスタムマスター情報の表示（情報表示用）
                 html += `
                     <div class="cluster-difference-item" style="background: #e7f3ff; border-left: 4px solid #007bff;">
-                        <div class="cluster-difference-item-label">${item.label}</div>
+                        <div class="cluster-difference-item-label">${escapeHtml(item.label)}</div>
                         <div class="cluster-difference-item-value">
-                            <strong>基準XML:</strong> ${item.ref}<br>
-                            <strong>比較XML:</strong> ${item.comp}
+                            <strong>基準XML:</strong> ${escapeHtml(item.ref)}<br>
+                            <strong>比較XML:</strong> ${escapeHtml(item.comp)}
                         </div>
                     </div>
                 `;
     } else {
                 html += `
                     <div class="cluster-difference-item">
-                        <div class="cluster-difference-item-label">${item.label}</div>
+                        <div class="cluster-difference-item-label">${escapeHtml(item.label)}</div>
                         <div class="cluster-difference-item-value">
-                            <strong>基準XML:</strong> ${item.ref}<br>
-                            <strong>比較XML:</strong> ${item.comp}
+                            <strong>基準XML:</strong> ${escapeHtml(item.ref)}<br>
+                            <strong>比較XML:</strong> ${escapeHtml(item.comp)}
                         </div>
                     </div>
                 `;
@@ -3397,6 +3487,7 @@ function selectCluster(index) {
         `;
     }
     
+    html += getClusterModalDisplayNote();
     modalBody.innerHTML = html;
     modal.style.display = 'block';
 }
@@ -4471,7 +4562,7 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
         // 基準XMLのクラスターの枠を破線で表示（緑色）
         layoutHtml += `
             <div style="position: absolute; left: ${left}px; top: ${top}px; width: ${clusterWidth}px; height: ${clusterHeight}px; border: 2px dashed #28a745; background: rgba(40, 167, 69, 0.05); border-radius: 5px; z-index: 2;"
-                 title="基準XML: ${name}">
+                 title="基準XML: ${escapeHtml(name)}">
             </div>
         `;
         
@@ -4666,7 +4757,7 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
         // クラスターの枠を表示
         layoutHtml += `
             <div style="position: absolute; left: ${left}px; top: ${top}px; width: ${clusterWidth}px; height: ${clusterHeight}px; border: 2px solid #6c757d; background: rgba(108, 117, 125, 0.1); border-radius: 5px; z-index: 2;"
-                 title="比較XML: ${name}">
+                 title="比較XML: ${escapeHtml(name)}">
             </div>
         `;
         

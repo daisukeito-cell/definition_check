@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<conmas>
+  <header>
+    <version>1</version>
+    <command></command>
+    <resultCode></resultCode>
+    <message></message>
+  </header>
+  <top>
+    <defTopId>1</defTopId>
+    <defTopName>XSSエスケープテスト用</defTopName>
+    <sheetCount>1</sheetCount>
+  </top>
+  <sheets>
+    <sheet>
+      <defSheetName>シート&lt;script&gt;alert(1)&lt;/script&gt;</defSheetName>
+      <width>595.32</width>
+      <height>841.92</height>
+      <networks></networks>
+      <clusters>
+        <cluster>
+          <clusterId>1</clusterId>
+          <name>クラスター名: &lt;img src=x onerror=alert(1)&gt;</name>
+          <type>KeyboardText</type>
+          <top>0.1</top>
+          <bottom>0.15</bottom>
+          <left>0.2</left>
+          <right>0.8</right>
+        </cluster>
+        <cluster>
+          <clusterId>2</clusterId>
+          <name>記号テスト: &amp; &quot; &#39; &lt; &gt;</name>
+          <type>Select</type>
+          <top>0.2</top>
+          <bottom>0.25</bottom>
+          <left>0.2</left>
+          <right>0.8</right>
+          <choices>
+            <choice><value>1</value><label>選択肢A &lt;b&gt;</label><selected>false</selected></choice>
+            <choice><value>2</value><label>選択肢B &amp;&amp; &quot;test&quot;</label><selected>true</selected></choice>
+          </choices>
+        </cluster>
+      </clusters>
+    </sheet>
+  </sheets>
+</conmas>

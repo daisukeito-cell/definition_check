@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 
+# 100MB超で GitHub に push できない（公式URLから取得）
+public/setup_Tool/assets/installers/*.zip
+
 # code coverage
 coverage
 *.lcov

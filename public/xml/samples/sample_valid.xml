@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<conmas>
+  <header>
+    <version>1</version>
+    <command></command>
+    <resultCode></resultCode>
+    <message></message>
+  </header>
+  <top>
+    <defTopId>1</defTopId>
+    <defTopName>テスト定義</defTopName>
+    <sheetCount>1</sheetCount>
+  </top>
+  <sheets>
+    <sheet>
+      <defSheetName>テストシート1</defSheetName>
+      <width>595.32</width>
+      <height>841.92</height>
+      <networks></networks>
+      <clusters>
+        <cluster>
+          <clusterId>1</clusterId>
+          <name>サンプル入力</name>
+          <type>KeyboardText</type>
+          <top>0.1</top>
+          <bottom>0.15</bottom>
+          <left>0.2</left>
+          <right>0.8</right>
+        </cluster>
+        <cluster>
+          <clusterId>2</clusterId>
+          <name>サンプル選択</name>
+          <type>Select</type>
+          <top>0.2</top>
+          <bottom>0.25</bottom>
+          <left>0.2</left>
+          <right>0.8</right>
+        </cluster>
+      </clusters>
+    </sheet>
+  </sheets>
+</conmas>

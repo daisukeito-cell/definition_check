@@ -1,3 +1,9 @@
+/**
+ * 端末準備ガイドのURL（public/setup_Tool を dist にコピー）
+ * - 別URLにしたい場合はここを書き換え
+ */
+const SETUP_GUIDE_URL = '/setup_Tool/AI_setup.html';
+
 export function initSetupCheckBanner() {
   const bannerHidden = localStorage.getItem('setupCheckBannerHidden');
   if (bannerHidden === 'true') {
@@ -10,7 +16,12 @@ export function initSetupCheckBanner() {
 }
 
 export function goToSetupGuide() {
-  window.location.href = '../AI_Tool/AI_setup.html';
+  try {
+    const url = new URL(SETUP_GUIDE_URL, window.location.origin);
+    window.location.assign(url.href);
+  } catch {
+    window.location.href = SETUP_GUIDE_URL;
+  }
 }
 
 export function closeSetupCheckBanner() {
