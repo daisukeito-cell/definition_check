@@ -290,16 +290,6 @@ body {
     text-align: center;
 }
 
-.compare-action-hint {
-    color: #856404;
-    background: #fff3cd;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    margin: 0.5rem 0 0.75rem;
-    display: inline-block;
-}
-
 .reference-xml-select {
     min-width: 280px;
     padding: 0.6rem 1rem;
@@ -2115,11 +2105,13 @@ body {
     padding: 1rem;
     margin: 1rem 0;
     box-shadow: 0 3px 10px rgba(40, 167, 69, 0.2);
+    text-align: center;
 }
 
 .reference-file-header {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
     color: #155724;
@@ -2133,9 +2125,14 @@ body {
 .reference-file-details {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.3rem;
     font-size: 0.9rem;
     color: #155724;
+    text-align: center;
+    max-width: 36rem;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .reference-file-details:empty {
@@ -2155,12 +2152,14 @@ body {
 .reference-pdf {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.3rem;
 }
 
 .reference-status {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.3rem;
     font-weight: 600;
 }

@@ -178,10 +178,6 @@ function setReferenceXmlUi(filename, text) {
     const refInfo = document.getElementById('referenceFileInfo');
     if (refInfo) {
         refInfo.style.display = 'block';
-        const header = document.getElementById('referenceFileHeader');
-        if (header) header.innerHTML = '';
-        const details = document.getElementById('referenceFileDetails');
-        if (details) details.innerHTML = '';
     }
     console.log('基準XML読み込み完了:', { filename, length: text.length });
     // 基準選択時点でプレビュー画面を表示
@@ -354,9 +350,15 @@ function checkReady() {
     if (compareBtn) {
         compareBtn.style.display = hasReference && file2 ? 'inline-block' : 'none';
     }
-    const compareActionHint = document.getElementById('compareActionHint');
-    if (compareActionHint) {
-        compareActionHint.style.display = (hasReference && !file2) ? 'block' : 'none';
+    const details = document.getElementById('referenceFileDetails');
+    if (details) {
+        if (hasReference) {
+            details.innerHTML = file2
+                ? '準備ができました。「比較を開始」をクリックしてください。'
+                : '比較XMLをアップロードすると「比較を開始」が表示されます。';
+        } else {
+            details.innerHTML = '';
+        }
     }
 }
 
