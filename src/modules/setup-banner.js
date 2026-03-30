@@ -41,7 +41,12 @@ function showReopenButton() {
   const reopenBtn = document.createElement('button');
   reopenBtn.id = 'reopenBannerBtn';
   reopenBtn.className = 'reopen-banner-btn';
-  reopenBtn.innerHTML = '📋 端末準備ガイドを表示';
+  reopenBtn.type = 'button';
+  reopenBtn.setAttribute(
+    'aria-label',
+    'ページ上部に、端末準備の手順とこのツールの使い方のボタンを表示します'
+  );
+  reopenBtn.innerHTML = '📋 ガイドバーを表示';
   reopenBtn.addEventListener('click', reopenSetupCheckBanner);
 
   const header = document.querySelector('.header');
@@ -60,7 +65,7 @@ function hideReopenButton() {
 function reopenSetupCheckBanner() {
   const banner = document.getElementById('setupCheckBanner');
   if (banner) {
-    banner.style.display = 'block';
+    banner.style.display = 'flex';
   }
   localStorage.removeItem('setupCheckBannerHidden');
   hideReopenButton();

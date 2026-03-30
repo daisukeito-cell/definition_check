@@ -1,5 +1,6 @@
 import pdfjsLib from './modules/pdf-worker.js';
 import { initSetupCheckBanner, goToSetupGuide, closeSetupCheckBanner } from './modules/setup-banner.js';
+import { initOnboardingWelcome } from './modules/onboarding-welcome.js';
 import { playVideo, closeVideoModal, handleVideoModalClick, selectVideo, downloadFile, setReferenceFileHandler } from './modules/video.js';
 import { performXmlComparison as performXmlComparisonCore } from './modules/compare/xml-compare.js';
 import { getClusterTypeJapanese, extractParameter, compareClusterSettings as compareClusterSettingsCore, getChoiceDifference as getChoiceDifferenceCore, checkClusterDifference as checkClusterDifferenceCore } from './modules/compare/cluster-diff.js';
@@ -180,7 +181,7 @@ function setReferenceXmlUi(filename, text) {
         const header = document.getElementById('referenceFileHeader');
         if (header) header.innerHTML = '';
         const details = document.getElementById('referenceFileDetails');
-        if (details) details.innerHTML = `比較XMLをアップロードすると「比較を開始」が表示されます。`;
+        if (details) details.innerHTML = '';
     }
     console.log('基準XML読み込み完了:', { filename, length: text.length });
     // 基準選択時点でプレビュー画面を表示
@@ -5277,11 +5278,11 @@ function bindUiEvents() {
     }
 
     // このツールの使い方モーダル（外部のお客様向け・システム解説なし）
-    const toolGuideBtn = document.getElementById('toolGuideBtn');
+    const toolGuideBannerBtn = document.getElementById('toolGuideBannerBtn');
     const toolGuideModal = document.getElementById('toolGuideModal');
     const toolGuideModalBody = document.getElementById('toolGuideModalBody');
     const toolGuideModalClose = document.getElementById('toolGuideModalClose');
-    if (toolGuideBtn && toolGuideModal && toolGuideModalBody) {
+    if (toolGuideBannerBtn && toolGuideModal && toolGuideModalBody) {
         const toolGuideContent = `
             <p class="tool-guide-lead">帳票定義の内容を、基準と比較して確認するためのツールです。<br>クラスター設定・ネットワーク設定の差分を、画面上一目で確認できます。</p>
 
@@ -5311,9 +5312,23 @@ function bindUiEvents() {
                 <a href="https://manuals.i-reporter.jp/glossary" target="_blank" rel="noopener noreferrer">📖 ConMas i-Reporter 用語集</a>で、クラスター・ネットワークなどの用語を確認できます。
             </p>
         `;
-        toolGuideBtn.addEventListener('click', () => {
+        function openToolGuideModal() {
             toolGuideModalBody.innerHTML = toolGuideContent;
             toolGuideModal.style.display = 'block';
+            if (toolGuideBannerBtn) {
+                toolGuideBannerBtn.classList.remove('setup-check-btn--highlight');
+            }
+        }
+        toolGuideBannerBtn.addEventListener('click', openToolGuideModal);
+
+        window.addEventListener('onboarding-welcome-closed', () => {
+            if (!toolGuideBannerBtn) return;
+            const banner = document.getElementById('setupCheckBanner');
+            if (banner && banner.style.display === 'none') return;
+            toolGuideBannerBtn.classList.add('setup-check-btn--highlight');
+            requestAnimationFrame(() => {
+                toolGuideBannerBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
         });
         function closeToolGuideModal(e) {
             if (!e || e.target === toolGuideModal || e.target === toolGuideModalClose) {
@@ -5494,6 +5509,7 @@ function bindDelegatedEvents() {
 
 // ページ読み込み時にバナーの状態を初期化
 document.addEventListener('DOMContentLoaded', function() {
+    initOnboardingWelcome();
     initSetupCheckBanner();
     bindUiEvents();
     bindDelegatedEvents();

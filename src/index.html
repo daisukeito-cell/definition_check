@@ -15,20 +15,21 @@
         <div class="header-title">帳票定義作成トレーニングルーム</div>
     </div>
 
-    <!-- 端末準備完了チェックバナー（閉じると localStorage で非表示＋再表示ボタン） -->
-    <div class="setup-check-banner" id="setupCheckBanner">
-        <div class="setup-check-content">
-            <div class="setup-check-icon">⚠️</div>
-            <div class="setup-check-text">
-                <strong>端末の準備は完了していますか？</strong>
-                <span>ConMas Excel COM add-in、i-Reporterアプリ、ConMasDesignerのインストール・設定が完了していない方は、まず導入手順を確認してください。</span>
+    <!-- 上部ガイドバー：端末準備＋このツールの使い方（非表示は localStorage＋「ガイドバーを表示」） -->
+    <div class="setup-guide-compact" id="setupCheckBanner">
+        <div class="setup-guide-compact-inner">
+            <div class="setup-guide-compact-actions">
+                <button type="button" class="setup-check-btn" id="setupCheckGuideBtn">
+                    <span class="setup-check-btn-icon">📋</span>
+                    端末準備の手順を見る
+                </button>
+                <button type="button" class="setup-check-btn" id="toolGuideBannerBtn">
+                    <span class="setup-check-btn-icon">📖</span>
+                    このツールの使い方
+                </button>
             </div>
-            <button class="setup-check-btn" id="setupCheckGuideBtn">
-                <span class="setup-check-btn-icon">📋</span>
-                端末の準備は完了していない方はこちら
-            </button>
+            <button type="button" class="setup-guide-dismiss" id="setupCheckCloseBtn" title="上部のガイド（端末準備・ツールの使い方）を非表示">非表示</button>
         </div>
-        <button class="setup-check-close" id="setupCheckCloseBtn" title="このバナーを閉じる">×</button>
     </div>
 
     <div class="container">
@@ -66,7 +67,6 @@
                     </div>
                 </div>
                 <div class="video-list">
-                    <div class="tool-guide-item" id="toolGuideBtn">📖 このツールの使い方</div>
                     <div class="video-list-title">📋 動画一覧</div>
                     
                     <div class="video-category">
@@ -648,6 +648,53 @@
             </div>
         </div>
     </div>
+    <!-- 初回訪問：このページの案内（localStorage で非表示にできる） -->
+    <div id="onboardingWelcomeOverlay" class="onboarding-welcome-overlay" style="display: none;" aria-hidden="true">
+        <div class="onboarding-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="onboardingWelcomeTitle">
+            <div class="onboarding-welcome-header">
+                <h2 id="onboardingWelcomeTitle">帳票定義トレーニングルームへようこそ</h2>
+                <p class="onboarding-welcome-lead">このページでは、動画教材の視聴・演習ファイルの利用、および帳票定義XMLの比較確認ができます。</p>
+            </div>
+            <div class="onboarding-welcome-body">
+                <h3 class="onboarding-welcome-subtitle">このページでできること</h3>
+                <ol class="onboarding-welcome-list">
+                    <li><strong>学習</strong>：動画で手順を確認し、演習用Excelや手順PDFをダウンロードできます。</li>
+                    <li><strong>比較</strong>：基準となる定義（STEP.1 / STEP.2）と、あなたが用意したXMLを読み込み、差分を一覧・レイアウト・ネットワークで確認できます。</li>
+                    <li><strong>端末準備</strong>：ConMas Excelアドイン、ConMasDesigner、i-Reporterアプリの導入が未完了の場合は、別画面の手順ガイドで確認できます。</li>
+                </ol>
+
+                <div id="onboardingStepTerminal" class="onboarding-welcome-step">
+                    <h3 class="onboarding-welcome-subtitle">端末の準備はできていますか？</h3>
+                    <p class="onboarding-welcome-note">初めての方は、以下から状況に合わせて進めてください。</p>
+                    <div class="onboarding-welcome-actions">
+                        <button type="button" class="onboarding-btn onboarding-btn-secondary" id="onboardingBtnUnset">
+                            未設定・手順を確認する
+                        </button>
+                        <button type="button" class="onboarding-btn onboarding-btn-primary" id="onboardingBtnSet">
+                            設定済み
+                        </button>
+                    </div>
+                    <button type="button" class="onboarding-btn-link" id="onboardingBtnLater">後で確認する（この案内を閉じる）</button>
+                </div>
+
+                <div id="onboardingStepReady" class="onboarding-welcome-step" hidden>
+                    <h3 class="onboarding-welcome-subtitle">トレーニングを始める</h3>
+                    <p class="onboarding-welcome-note">準備ができたら、下のボタンでメイン画面に進みます。</p>
+                    <label class="onboarding-welcome-checkbox">
+                        <input type="checkbox" id="onboardingDontShowAgain" />
+                        <span>次回からこの案内を表示しない</span>
+                    </label>
+                    <div class="onboarding-welcome-actions">
+                        <button type="button" class="onboarding-btn onboarding-btn-primary" id="onboardingBtnStart">
+                            トレーニングを始める
+                        </button>
+                    </div>
+                    <button type="button" class="onboarding-btn-link" id="onboardingLinkBackToTerminal">端末の準備の選択に戻る</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 動画プレーヤーモーダル -->
     <div class="video-modal" id="videoModal" style="display: none;">
         <div class="video-modal-content">
