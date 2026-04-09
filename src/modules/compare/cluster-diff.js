@@ -83,6 +83,163 @@ export function compareClusterSettings(cluster1, cluster2) {
     return false;
 }
 
+/** inputParameters の Items= / Labels= から取り出す対象（i-Reporter 帳票定義XMLで choices 要素が無い場合がある） */
+const CLUSTER_TYPES_WITH_ITEMS_PARAM = new Set([
+    'Select',
+    'MultiSelect',
+    'MultipleChoiceNumber',
+    'SelectMaster'
+]);
+
+function splitCommaSeparatedItems(raw) {
+    if (!raw || !String(raw).trim()) return [];
+    return String(raw)
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+}
+
+/**
+ * inputParameters 内の Items / Labels（カンマ区切り）から選択肢配列を作る
+ */
+function extractChoicesFromItemsLabelsParam(cluster) {
+    const type = cluster.querySelector('type')?.textContent || '';
+    if (!CLUSTER_TYPES_WITH_ITEMS_PARAM.has(type)) return [];
+    const inputParams = cluster.querySelector('inputParameters')?.textContent || '';
+    const itemsRaw = extractParameter(inputParams, 'Items');
+    const labelsRaw = extractParameter(inputParams, 'Labels');
+    if (!itemsRaw && !labelsRaw) return [];
+    const items = splitCommaSeparatedItems(itemsRaw);
+    const labels = splitCommaSeparatedItems(labelsRaw);
+    const n = Math.max(items.length, labels.length);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+        const value = items[i] ?? '';
+        const label = labels[i] ?? value;
+        out.push({
+            value,
+            label,
+            selected: 'false'
+        });
+    }
+    return out;
+}
+
+/**
+ * クラスター要素から選択肢を抽出する。
+ * ・choices/choice がある場合はそれを優先
+ * ・無い場合は Select/MultiSelect 等の inputParameters（Items/Labels）から取得（Definition_check.xml 形式）
+ */
+export function extractChoicesFromCluster(cluster) {
+    if (!cluster) return [];
+    const choiceEls = cluster.querySelectorAll('choices choice');
+    if (choiceEls.length > 0) {
+        return Array.from(choiceEls).map((choice) => ({
+            value: choice.querySelector('value')?.textContent ?? '',
+            label: choice.querySelector('label')?.textContent ?? '',
+            selected: choice.querySelector('selected')?.textContent || 'false'
+        }));
+    }
+    return extractChoicesFromItemsLabelsParam(cluster);
+}
+
+/**
+ * 選択肢ごとに compareChoiceLists と同じキーを割り当て、インデックス→キーも返す
+ */
+function buildChoiceKeyMapWithIndexKeys(list) {
+    const keyFor = (c, i) => {
+        const v = String(c.value ?? '');
+        return v !== '' ? v : `__empty_${i}`;
+    };
+    const map = new Map();
+    const keyAtIndex = [];
+    list.forEach((c, i) => {
+        let k = keyFor(c, i);
+        let n = 0;
+        while (map.has(k)) {
+            n += 1;
+            k = `${keyFor(c, i)}__dup${n}`;
+        }
+        map.set(k, c);
+        keyAtIndex[i] = k;
+    });
+    return { map, keyAtIndex };
+}
+
+/**
+ * モーダル表示用：基準列・比較列それぞれ「定義順」で並べ、相手側に同一キーが無い行だけ isOrphan。
+ */
+export function getChoiceDisplayColumns(listRef, listComp) {
+    const { map: mapRef, keyAtIndex: kRef } = buildChoiceKeyMapWithIndexKeys(listRef);
+    const { map: mapComp, keyAtIndex: kComp } = buildChoiceKeyMapWithIndexKeys(listComp);
+    const keysComp = new Set(mapComp.keys());
+    const keysRef = new Set(mapRef.keys());
+    return {
+        refColumn: listRef.map((c, i) => ({
+            choice: c,
+            isOrphan: !keysComp.has(kRef[i])
+        })),
+        compColumn: listComp.map((c, i) => ({
+            choice: c,
+            isOrphan: !keysRef.has(kComp[i])
+        }))
+    };
+}
+
+/**
+ * 選択肢配列を値（value）をキーに比較する。並び順の違いのみでは差分にしない。
+ * @returns {{ hasDifferences: boolean, differences: string[], choicePairRows: Array }}
+ */
+export function compareChoiceLists(choiceList1, choiceList2) {
+    const map1 = buildChoiceKeyMapWithIndexKeys(choiceList1).map;
+    const map2 = buildChoiceKeyMapWithIndexKeys(choiceList2).map;
+
+    const allKeys = Array.from(new Set([...map1.keys(), ...map2.keys()])).sort((a, b) =>
+        a.localeCompare(b, 'ja')
+    );
+
+    const differences = [];
+    const pairRows = [];
+
+    for (const key of allKeys) {
+        const c1 = map1.get(key) || null;
+        const c2 = map2.get(key) || null;
+        let isDiff = false;
+
+        if (!c1 && c2) {
+            differences.push(
+                `選択肢（値: ${c2.value || '（空）'}）: 基準XMLにのみ存在しない → 比較XMLで追加`
+            );
+            isDiff = true;
+        } else if (c1 && !c2) {
+            differences.push(
+                `選択肢（値: ${c1.value || '（空）'}）: 比較XMLにのみ存在しない → 基準XMLのみ`
+            );
+            isDiff = true;
+        } else if (c1 && c2) {
+            if (c1.label !== c2.label) {
+                differences.push(
+                    `値「${c1.value || key}」のラベル: ${c1.label} → ${c2.label}`
+                );
+                isDiff = true;
+            }
+        }
+
+        pairRows.push({
+            key,
+            ref: c1,
+            comp: c2,
+            isDiff
+        });
+    }
+
+    return {
+        hasDifferences: differences.length > 0,
+        differences,
+        choicePairRows: pairRows
+    };
+}
+
 export function getChoiceDifference(cluster, index, context = {}) {
     const { xmlData1, xmlData2, currentSheetIndex = 0 } = context;
 
@@ -91,7 +248,9 @@ export function getChoiceDifference(cluster, index, context = {}) {
             hasDifferences: false,
             differences: [],
             choices: [],
-            ref_choices: []
+            ref_choices: [],
+            choicePairRows: [],
+            choiceDisplayColumns: { refColumn: [], compColumn: [] }
         };
     }
 
@@ -107,7 +266,9 @@ export function getChoiceDifference(cluster, index, context = {}) {
             hasDifferences: false,
             differences: [],
             choices: [],
-            ref_choices: []
+            ref_choices: [],
+            choicePairRows: [],
+            choiceDisplayColumns: { refColumn: [], compColumn: [] }
         };
     }
 
@@ -122,61 +283,28 @@ export function getChoiceDifference(cluster, index, context = {}) {
             hasDifferences: false,
             differences: [],
             choices: [],
-            ref_choices: []
+            ref_choices: [],
+            choicePairRows: [],
+            choiceDisplayColumns: { refColumn: [], compColumn: [] }
         };
     }
 
     const cluster1 = clusters1[index];
     const cluster2 = clusters2[index];
 
-    const choices1 = cluster1.querySelectorAll('choices choice');
-    const choices2 = cluster2.querySelectorAll('choices choice');
+    const choiceList1 = extractChoicesFromCluster(cluster1);
+    const choiceList2 = extractChoicesFromCluster(cluster2);
 
-    const choiceList1 = Array.from(choices1).map(choice => ({
-        value: choice.querySelector('value')?.textContent || '',
-        label: choice.querySelector('label')?.textContent || '',
-        selected: choice.querySelector('selected')?.textContent || 'false'
-    }));
-
-    const choiceList2 = Array.from(choices2).map(choice => ({
-        value: choice.querySelector('value')?.textContent || '',
-        label: choice.querySelector('label')?.textContent || '',
-        selected: choice.querySelector('selected')?.textContent || 'false'
-    }));
-
-    const differences = [];
-
-    if (choiceList1.length !== choiceList2.length) {
-        differences.push(`選択肢数: ${choiceList1.length} → ${choiceList2.length}`);
-    }
-
-    const maxLength = Math.max(choiceList1.length, choiceList2.length);
-    for (let i = 0; i < maxLength; i++) {
-        const choice1 = choiceList1[i];
-        const choice2 = choiceList2[i];
-
-        if (!choice1) {
-            differences.push(`選択肢${i + 1}: 新規追加 (${choice2.label})`);
-        } else if (!choice2) {
-            differences.push(`選択肢${i + 1}: 削除 (${choice1.label})`);
-        } else {
-            if (choice1.value !== choice2.value) {
-                differences.push(`選択肢${i + 1}の値: ${choice1.value} → ${choice2.value}`);
-            }
-            if (choice1.label !== choice2.label) {
-                differences.push(`選択肢${i + 1}のラベル: ${choice1.label} → ${choice2.label}`);
-            }
-            if (choice1.selected !== choice2.selected) {
-                differences.push(`選択肢${i + 1}の選択状態: ${choice1.selected} → ${choice2.selected}`);
-            }
-        }
-    }
+    const { differences, choicePairRows: pairRows } = compareChoiceLists(choiceList1, choiceList2);
+    const choiceDisplayColumns = getChoiceDisplayColumns(choiceList1, choiceList2);
 
     return {
         hasDifferences: differences.length > 0,
         differences: differences,
         choices: choiceList2,
-        ref_choices: choiceList1
+        ref_choices: choiceList1,
+        choicePairRows: pairRows,
+        choiceDisplayColumns
     };
 }
 

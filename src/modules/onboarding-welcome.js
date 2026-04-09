@@ -1,7 +1,7 @@
 const STORAGE_DISMISS = 'trainingRoomOnboardingDismissed';
 
 /**
- * 初回訪問向け：このページでできること → 端末準備の確認 → トレーニング開始
+ * 初回訪問向け：このページでできること → 端末準備の確認 →（設定済みで本文を「目的」に切替）→ トレーニング開始
  */
 export function initOnboardingWelcome() {
     if (localStorage.getItem(STORAGE_DISMISS) === '1') {
@@ -11,6 +11,8 @@ export function initOnboardingWelcome() {
     const overlay = document.getElementById('onboardingWelcomeOverlay');
     if (!overlay) return;
 
+    const blockFeatures = document.getElementById('onboardingBlockFeatures');
+    const blockPurpose = document.getElementById('onboardingBlockPurpose');
     const stepTerminal = document.getElementById('onboardingStepTerminal');
     const stepReady = document.getElementById('onboardingStepReady');
     const btnUnset = document.getElementById('onboardingBtnUnset');
@@ -47,6 +49,8 @@ export function initOnboardingWelcome() {
     });
 
     btnSet?.addEventListener('click', () => {
+        if (blockFeatures) blockFeatures.hidden = true;
+        if (blockPurpose) blockPurpose.hidden = false;
         if (stepTerminal) stepTerminal.hidden = true;
         if (stepReady) stepReady.hidden = false;
         if (chkDontShow) chkDontShow.checked = false;
@@ -62,6 +66,8 @@ export function initOnboardingWelcome() {
     });
 
     linkBack?.addEventListener('click', () => {
+        if (blockFeatures) blockFeatures.hidden = false;
+        if (blockPurpose) blockPurpose.hidden = true;
         if (stepTerminal) stepTerminal.hidden = false;
         if (stepReady) stepReady.hidden = true;
     });

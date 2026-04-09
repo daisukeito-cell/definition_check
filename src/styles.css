@@ -2991,6 +2991,79 @@ body {
     font-size: 0.95rem;
 }
 
+.cluster-difference-item--choices .cluster-choice-pair-wrap {
+    margin-top: 0.75rem;
+}
+
+.cluster-choice-pair-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.cluster-choice-pair-table th,
+.cluster-choice-pair-table td {
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    border: 1px solid #dee2e6;
+    vertical-align: top;
+}
+
+.cluster-choice-pair-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+}
+
+.cluster-choice-pair-lines {
+    line-height: 1.45;
+}
+
+.cluster-choice-col-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.cluster-choice-block {
+    padding: 0.45rem 0.5rem;
+    border-radius: 6px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.cluster-choice-block--orphan {
+    background: #ffe5e5;
+    border-color: #f5c2c7;
+    color: #b02a37;
+    font-weight: 500;
+}
+
+.cluster-choice-empty {
+    color: #6c757d;
+}
+
+.cluster-choice-pair-row.cluster-choice-row--diff {
+    background: #ffe5e5;
+    color: #b02a37;
+}
+
+.cluster-choice-pair-row.cluster-choice-row--diff .cluster-choice-pair-cell {
+    font-weight: 500;
+}
+
+.cluster-choice-pair-legend {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.cluster-choice-legend-mark {
+    color: #dc3545;
+    font-weight: 600;
+}
+
 .cluster-comparison-table {
     width: 100%;
     border-collapse: collapse;
@@ -3116,6 +3189,10 @@ body {
     padding: 1.5rem 2rem 2rem;
 }
 
+.onboarding-welcome-block .onboarding-welcome-list {
+    margin-bottom: 0;
+}
+
 .onboarding-welcome-subtitle {
     font-size: 1.1rem;
     color: #333;
@@ -3124,6 +3201,27 @@ body {
 
 .onboarding-welcome-subtitle:first-child {
     margin-top: 0;
+}
+
+.onboarding-welcome-subtitle--accent {
+    font-size: 1.2rem;
+    color: #1a1a1a;
+    letter-spacing: 0.02em;
+    padding: 0.35rem 0 0.6rem;
+    margin-bottom: 1rem;
+    border-bottom: 3px solid rgba(255, 149, 0, 0.45);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.onboarding-welcome-subtitle--accent::before {
+    content: "";
+    width: 4px;
+    height: 1.15em;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #ff9500 0%, #e68500 100%);
+    flex-shrink: 0;
 }
 
 .onboarding-welcome-list {
@@ -3136,6 +3234,181 @@ body {
 
 .onboarding-welcome-list li {
     margin-bottom: 0.65rem;
+}
+
+/* 「できること」3項目：カード＋ラベル */
+.onboarding-welcome-list--features {
+    list-style: none;
+    padding-left: 0;
+    margin: 0 0 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.onboarding-welcome-list--features li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.65rem 0.85rem;
+    margin: 0;
+    padding: 0.9rem 1rem;
+    background: linear-gradient(145deg, #fffbf7 0%, #fff5eb 100%);
+    border: 1px solid rgba(255, 149, 0, 0.22);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(230, 133, 0, 0.06);
+    line-height: 1.65;
+}
+
+.onboarding-li-label {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    background: linear-gradient(135deg, #ff9500 0%, #e68500 100%);
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+}
+
+.onboarding-li-body {
+    flex: 1 1 200px;
+    color: #333;
+    font-size: 0.98rem;
+}
+
+.onboarding-welcome-purpose {
+    color: #333;
+    font-size: 1rem;
+    line-height: 1.75;
+    margin-bottom: 0.25rem;
+}
+
+.onboarding-purpose-intro {
+    margin: 0 0 1.15rem;
+    padding: 1rem 1.15rem;
+    background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fc 100%);
+    border: 1px solid rgba(0, 123, 255, 0.18);
+    border-radius: 12px;
+    border-left: 4px solid #007bff;
+}
+
+.onboarding-purpose-intro-text {
+    margin: 0;
+    font-size: 1.02rem;
+    line-height: 1.75;
+    color: #1a3a52;
+}
+
+.onboarding-purpose-figure {
+    margin: 0 0 1rem;
+    padding: 0;
+    text-align: center;
+    line-height: 0;
+}
+
+.onboarding-purpose-figure img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.onboarding-welcome-purpose-lead {
+    margin: 0 0 0.65rem !important;
+}
+
+.onboarding-flow-heading {
+    display: inline-block;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #e68500;
+    letter-spacing: 0.06em;
+    padding: 0.25rem 0.65rem;
+    background: rgba(255, 149, 0, 0.12);
+    border-radius: 6px;
+}
+
+.onboarding-welcome-list--flow {
+    list-style: none;
+    padding-left: 0;
+    margin: 0 0 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.onboarding-welcome-list--flow li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0.75rem 0.85rem;
+    background: #fafafa;
+    border-radius: 10px;
+    border: 1px solid #eee;
+    line-height: 1.65;
+}
+
+.onboarding-flow-step {
+    flex: 0 0 auto;
+    width: 1.85rem;
+    height: 1.85rem;
+    line-height: 1.85rem;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #ff9500 0%, #e68500 100%);
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(230, 133, 0, 0.35);
+}
+
+.onboarding-flow-text {
+    flex: 1;
+    font-size: 0.98rem;
+    color: #333;
+    padding-top: 0.08rem;
+}
+
+.onboarding-flow-text > strong {
+    display: block;
+    font-size: 1rem;
+    color: #1a1a1a;
+}
+
+.onboarding-flow-detail {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: #555;
+    font-weight: 500;
+}
+
+.onboarding-purpose-note {
+    margin: 0;
+    padding: 0.85rem 0 0;
+    border-top: 1px dashed #ddd;
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: #555;
+}
+
+@media (max-width: 520px) {
+    .onboarding-welcome-list--features li {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .onboarding-li-label {
+        align-self: flex-start;
+    }
 }
 
 .onboarding-welcome-note {

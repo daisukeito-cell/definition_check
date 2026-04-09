@@ -1,5 +1,234 @@
-import { getClusterTypeJapanese, extractParameter } from './cluster-diff.js';
 import { formatNextAutoInputStart } from './network-diff.js';
+import {
+    getClusterTypeJapanese,
+    extractParameter,
+    compareChoiceLists,
+    extractChoicesFromCluster
+} from './cluster-diff.js';
+
+/** choices をシート上の対応クラスター同士で比較する対象種別 */
+const CLUSTER_TYPES_WITH_CHOICE_LIST = new Set([
+    'Select',
+    'MultiSelect',
+    'MultipleChoiceNumber',
+    'SelectMaster'
+]);
+
+/**
+ * 旧設定パネルのチェックボックス。要素が無い場合は true（従来の「すべてオン」相当）。
+ */
+function isXmlCompareOptionOn(id) {
+    const el = document.getElementById(id);
+    if (!el) return true;
+    return !!el.checked;
+}
+
+/** 遷移の同一性（XML内の並び順は無視） */
+function networkEdgeKey(net) {
+    const ps = net.querySelector('prevSheetNo')?.textContent ?? '';
+    const pc = net.querySelector('prevClusterId')?.textContent ?? '';
+    const ns = net.querySelector('nextSheetNo')?.textContent ?? '';
+    const nc = net.querySelector('nextClusterId')?.textContent ?? '';
+    return `${ps}|${pc}|${ns}|${nc}`;
+}
+
+function describeNetworkEdge(net) {
+    const ps = net.querySelector('prevSheetNo')?.textContent ?? '?';
+    const pc = net.querySelector('prevClusterId')?.textContent ?? '?';
+    const ns = net.querySelector('nextSheetNo')?.textContent ?? '?';
+    const nc = net.querySelector('nextClusterId')?.textContent ?? '?';
+    const pDisp =
+        pc !== '?' && pc !== '' && !Number.isNaN(Number(pc)) ? String(Number(pc) + 1) : pc;
+    const nDisp =
+        nc !== '?' && nc !== '' && !Number.isNaN(Number(nc)) ? String(Number(nc) + 1) : nc;
+    return `シート${ps}・クラスター${pDisp} → シート${ns}・クラスター${nDisp}`;
+}
+
+function buildNetworkMapByEdge(networkNodeList) {
+    const map = new Map();
+    Array.from(networkNodeList).forEach((net) => {
+        let k = networkEdgeKey(net);
+        let n = 0;
+        while (map.has(k)) {
+            n += 1;
+            k = `${networkEdgeKey(net)}__dup${n}`;
+        }
+        map.set(k, net);
+    });
+    return map;
+}
+
+function readValueLinkFields(vl) {
+    return {
+        parentValue: vl.querySelector('parentValue')?.textContent ?? '',
+        childValue: vl.querySelector('childValue')?.textContent ?? '',
+        selectValues: vl.querySelector('selectValues')?.textContent ?? ''
+    };
+}
+
+function buildValueLinkMapByParent(valueLinkNodes) {
+    const map = new Map();
+    Array.from(valueLinkNodes).forEach((vl, i) => {
+        const p = vl.querySelector('parentValue')?.textContent ?? '';
+        let k = p !== '' ? p : `__empty_${i}`;
+        let n = 0;
+        while (map.has(k)) {
+            n += 1;
+            k = `${p !== '' ? p : `__empty_${i}`}__dup${n}`;
+        }
+        map.set(k, vl);
+    });
+    return map;
+}
+
+function compareNetworkFieldsPaired(network1, network2, edgeDesc, result) {
+    const skip1 = network1.querySelector('skip')?.textContent;
+    const skip2 = network2.querySelector('skip')?.textContent;
+    const condition1 = network1.querySelector('condition')?.textContent;
+    const condition2 = network2.querySelector('condition')?.textContent;
+    const nextAutoInputStart1 = network1.querySelector('nextAutoInputStart')?.textContent;
+    const nextAutoInputStart2 = network2.querySelector('nextAutoInputStart')?.textContent;
+    const nextAutoInput1 = network1.querySelector('nextAutoInput')?.textContent;
+    const nextAutoInput2 = network2.querySelector('nextAutoInput')?.textContent;
+    const nextAutoInputEdit1 = network1.querySelector('nextAutoInputEdit')?.textContent;
+    const nextAutoInputEdit2 = network2.querySelector('nextAutoInputEdit')?.textContent;
+    const noNeedToFillOut1 = network1.querySelector('noNeedToFillOut')?.textContent;
+    const noNeedToFillOut2 = network2.querySelector('noNeedToFillOut')?.textContent;
+
+    if (isXmlCompareOptionOn('network_skip')) {
+        if (skip1 !== skip2) {
+            result.differences.push({
+                type: 'network',
+                category: 'skip',
+                description: `${edgeDesc}: スキップ設定が異なります`,
+                details: {
+                    ref: skip1 || '未設定',
+                    up: skip2 || '未設定'
+                }
+            });
+        }
+    }
+
+    if (isXmlCompareOptionOn('network_condition')) {
+        if (condition1 !== condition2) {
+            result.differences.push({
+                type: 'network',
+                category: 'condition',
+                description: `${edgeDesc}: 条件設定が異なります`,
+                details: {
+                    ref: condition1 || '未設定',
+                    up: condition2 || '未設定'
+                }
+            });
+        }
+    }
+
+    if (nextAutoInputStart1 !== nextAutoInputStart2) {
+        result.differences.push({
+            type: 'network',
+            category: 'nextAutoInputStart',
+            description: `${edgeDesc}: 後続クラスターの自動入力開始位置が異なります`,
+            details: {
+                ref: formatNextAutoInputStart(nextAutoInputStart1),
+                up: formatNextAutoInputStart(nextAutoInputStart2)
+            }
+        });
+    }
+
+    if (nextAutoInput1 !== nextAutoInput2) {
+        result.differences.push({
+            type: 'network',
+            category: 'nextAutoInput',
+            description: `${edgeDesc}: 次自動入力が異なります`,
+            details: {
+                ref: nextAutoInput1 || '未設定',
+                up: nextAutoInput2 || '未設定'
+            }
+        });
+    }
+
+    if (nextAutoInputEdit1 !== nextAutoInputEdit2) {
+        result.differences.push({
+            type: 'network',
+            category: 'nextAutoInputEdit',
+            description: `${edgeDesc}: 次自動入力編集が異なります`,
+            details: {
+                ref: nextAutoInputEdit1 || '未設定',
+                up: nextAutoInputEdit2 || '未設定'
+            }
+        });
+    }
+
+    if (noNeedToFillOut1 !== noNeedToFillOut2) {
+        result.differences.push({
+            type: 'network',
+            category: 'noNeedToFillOut',
+            description: `${edgeDesc}: 記入不要設定が異なります`,
+            details: {
+                ref: noNeedToFillOut1 || '未設定',
+                up: noNeedToFillOut2 || '未設定'
+            }
+        });
+    }
+}
+
+function compareValueLinksForEdge(network1, network2, edgeDesc, result) {
+    const map1 = buildValueLinkMapByParent(network1.querySelectorAll('valueLinks valueLink'));
+    const map2 = buildValueLinkMapByParent(network2.querySelectorAll('valueLinks valueLink'));
+    const allKeys = Array.from(new Set([...map1.keys(), ...map2.keys()])).sort((a, b) =>
+        a.localeCompare(b, 'ja')
+    );
+
+    for (const key of allKeys) {
+        const vl1 = map1.get(key);
+        const vl2 = map2.get(key);
+        const parentLabel = key.startsWith('__empty') ? '（親値なし）' : key;
+
+        if (!vl1 && vl2) {
+            result.differences.push({
+                type: 'valueLink',
+                category: 'valueLink_only_compare',
+                description: `${edgeDesc} のバリューリンク（親: ${parentLabel}）: 比較XMLにのみ存在します`,
+                details: { ref: 'なし', up: 'あり' }
+            });
+            continue;
+        }
+        if (vl1 && !vl2) {
+            result.differences.push({
+                type: 'valueLink',
+                category: 'valueLink_only_ref',
+                description: `${edgeDesc} のバリューリンク（親: ${parentLabel}）: 基準XMLにのみ存在します`,
+                details: { ref: 'あり', up: 'なし' }
+            });
+            continue;
+        }
+        const f1 = readValueLinkFields(vl1);
+        const f2 = readValueLinkFields(vl2);
+        const pv = f1.parentValue || parentLabel;
+        if (f1.selectValues !== f2.selectValues) {
+            result.differences.push({
+                type: 'valueLink',
+                category: 'selectValues',
+                description: `${edgeDesc} バリューリンク（親: ${pv}）: 選択値(selectValues)が異なります`,
+                details: {
+                    ref: f1.selectValues || '未設定',
+                    up: f2.selectValues || '未設定'
+                }
+            });
+        }
+        if (f1.childValue !== f2.childValue) {
+            result.differences.push({
+                type: 'valueLink',
+                category: 'childValue',
+                description: `${edgeDesc} バリューリンク（親: ${pv}）: 子値(childValue)が異なります`,
+                details: {
+                    ref: f1.childValue || '未設定',
+                    up: f2.childValue || '未設定'
+                }
+            });
+        }
+    }
+}
 
 export function performXmlComparison(xml1, xml2, context = {}) {
     const { file1, file2 } = context;
@@ -101,30 +330,29 @@ export function performXmlComparison(xml1, xml2, context = {}) {
         compareBasicStructure(doc1, doc2, result);
         
         // クラスター種別の詳細比較
-        if (document.getElementById('cluster_type_detail')?.checked) {
+        if (isXmlCompareOptionOn('cluster_type_detail')) {
             compareClusterTypes(doc1, doc2, result);
         }
 
         // ネットワーク・バリューリンク・カスタムマスターの比較
-        if (document.getElementById('network_value_compare')?.checked) {
+        if (isXmlCompareOptionOn('network_value_compare')) {
             compareNetworksAndValueLinks(doc1, doc2, result);
         }
 
         // 選択肢設定の比較
-        if (document.getElementById('choice_settings_compare')?.checked) {
+        if (isXmlCompareOptionOn('choice_settings_compare')) {
             compareChoiceSettings(doc1, doc2, result);
         }
 
         // カーボンコピーの比較
-        if (document.getElementById('carbon_existence')?.checked || 
-            document.getElementById('carbon_target')?.checked || 
-            document.getElementById('carbon_edit')?.checked) {
+        if (isXmlCompareOptionOn('carbon_existence') ||
+            isXmlCompareOptionOn('carbon_target') ||
+            isXmlCompareOptionOn('carbon_edit')) {
             compareCarbonCopy(doc1, doc2, result);
         }
 
         // 帳票コピーの比較
-        if (document.getElementById('report_display')?.checked || 
-            document.getElementById('report_clear')?.checked) {
+        if (isXmlCompareOptionOn('report_display') || isXmlCompareOptionOn('report_clear')) {
             compareReportCopy(doc1, doc2, result);
         }
 
@@ -134,8 +362,8 @@ export function performXmlComparison(xml1, xml2, context = {}) {
         // ユーザーカスタムマスターの比較
         compareUserCustomMaster(doc1, doc2, result);
 
-        // 入力パラメータの詳細比較
-        if (document.getElementById('show_parameters')?.checked) {
+        // 入力パラメータの詳細比較（旧UI では show_parameters と同一IDだった）
+        if (isXmlCompareOptionOn('show_parameters')) {
             compareInputParameters(doc1, doc2, result);
         }
 
@@ -222,11 +450,11 @@ function compareClusterTypes(doc1, doc2, result) {
     result.structure.calculates.match = calculateClusters1.length === calculateClusters2.length;
 
     // 詳細比較
-    if (document.getElementById('date_calendar_compare').checked) {
+    if (isXmlCompareOptionOn('date_calendar_compare')) {
         compareDateClusters(dateClusters1, dateClusters2, result);
     }
-    
-    if (document.getElementById('numeric_calculate_compare').checked) {
+
+    if (isXmlCompareOptionOn('numeric_calculate_compare')) {
         compareNumericClusters(numericClusters1, numericClusters2, result);
         compareCalculateClusters(calculateClusters1, calculateClusters2, result);
     }
@@ -312,263 +540,57 @@ function compareCalculateClusters(clusters1, clusters2, result) {
 }
 
 function compareNetworksAndValueLinks(doc1, doc2, result) {
-    // ネットワーク設定の比較
     const networks1 = doc1.querySelectorAll('networks network');
     const networks2 = doc2.querySelectorAll('networks network');
-    
+
     result.structure.networks.ref = networks1.length;
     result.structure.networks.up = networks2.length;
-    result.structure.networks.match = networks1.length === networks2.length;
-    
-    // ネットワーク設定の詳細比較
-    const maxNetworks = Math.max(networks1.length, networks2.length);
-    for (let i = 0; i < maxNetworks; i++) {
-        const network1 = networks1[i];
-        const network2 = networks2[i];
-        
-        if (!network1 || !network2) {
-            // ネットワークの存在自体が異なる
-            const networkId = network1 ? network1.querySelector('id')?.textContent : network2.querySelector('id')?.textContent;
+
+    const map1 = buildNetworkMapByEdge(networks1);
+    const map2 = buildNetworkMapByEdge(networks2);
+    const keys1 = new Set(map1.keys());
+    const keys2 = new Set(map2.keys());
+    result.structure.networks.match =
+        keys1.size === keys2.size && [...keys1].every((k) => keys2.has(k));
+
+    const allEdgeKeys = Array.from(new Set([...map1.keys(), ...map2.keys()])).sort((a, b) =>
+        a.localeCompare(b, 'ja')
+    );
+
+    for (const key of allEdgeKeys) {
+        const network1 = map1.get(key);
+        const network2 = map2.get(key);
+        const edgeDesc = describeNetworkEdge(network1 || network2);
+
+        if (!network1 && network2) {
             result.differences.push({
                 type: 'network',
-                category: 'network_existence',
-                description: `ネットワーク${networkId || i + 1}: 存在が異なります`,
+                category: 'network_only_in_compare',
+                description: `ネットワーク（${edgeDesc}）: 比較XMLにのみ存在します`,
                 details: {
-                    ref: network1 ? '存在' : '不存在',
-                    up: network2 ? '存在' : '不存在'
+                    ref: 'なし',
+                    up: 'あり'
                 }
             });
             continue;
         }
-        
-        // ネットワーク設定の詳細比較
-        const prevSheetNo1 = network1.querySelector('prevSheetNo')?.textContent;
-        const prevSheetNo2 = network2.querySelector('prevSheetNo')?.textContent;
-        const prevClusterId1 = network1.querySelector('prevClusterId')?.textContent;
-        const prevClusterId2 = network2.querySelector('prevClusterId')?.textContent;
-        const nextSheetNo1 = network1.querySelector('nextSheetNo')?.textContent;
-        const nextSheetNo2 = network2.querySelector('nextSheetNo')?.textContent;
-        const nextClusterId1 = network1.querySelector('nextClusterId')?.textContent;
-        const nextClusterId2 = network2.querySelector('nextClusterId')?.textContent;
-        const skip1 = network1.querySelector('skip')?.textContent;
-        const skip2 = network2.querySelector('skip')?.textContent;
-        const condition1 = network1.querySelector('condition')?.textContent;
-        const condition2 = network2.querySelector('condition')?.textContent;
-        const nextAutoInputStart1 = network1.querySelector('nextAutoInputStart')?.textContent;
-        const nextAutoInputStart2 = network2.querySelector('nextAutoInputStart')?.textContent;
-        const nextAutoInput1 = network1.querySelector('nextAutoInput')?.textContent;
-        const nextAutoInput2 = network2.querySelector('nextAutoInput')?.textContent;
-        const nextAutoInputEdit1 = network1.querySelector('nextAutoInputEdit')?.textContent;
-        const nextAutoInputEdit2 = network2.querySelector('nextAutoInputEdit')?.textContent;
-        const noNeedToFillOut1 = network1.querySelector('noNeedToFillOut')?.textContent;
-        const noNeedToFillOut2 = network2.querySelector('noNeedToFillOut')?.textContent;
-        
-        // 設定パネルのチェックボックスに基づいて比較
-        if (document.getElementById('network_sheets')?.checked) {
-            if (prevSheetNo1 !== prevSheetNo2) {
-                result.differences.push({
-                    type: 'network',
-                    category: 'prevSheetNo',
-                    description: `ネットワーク${i + 1}: 遷移元シートが異なります`,
-                    details: {
-                        ref: prevSheetNo1 || '未設定',
-                        up: prevSheetNo2 || '未設定'
-                    }
-                });
-            }
-            
-            if (nextSheetNo1 !== nextSheetNo2) {
-                result.differences.push({
-                    type: 'network',
-                    category: 'nextSheetNo',
-                    description: `ネットワーク${i + 1}: 遷移先シートが異なります`,
-                    details: {
-                        ref: nextSheetNo1 || '未設定',
-                        up: nextSheetNo2 || '未設定'
-                    }
-                });
-            }
-        }
-        
-        if (document.getElementById('network_clusters')?.checked) {
-            if (prevClusterId1 !== prevClusterId2) {
-                result.differences.push({
-                    type: 'network',
-                    category: 'prevClusterId',
-                    description: `ネットワーク${i + 1}: 遷移元クラスターIDが異なります`,
-                    details: {
-                        ref: prevClusterId1 || '未設定',
-                        up: prevClusterId2 || '未設定'
-                    }
-                });
-            }
-            
-            if (nextClusterId1 !== nextClusterId2) {
-                result.differences.push({
-                    type: 'network',
-                    category: 'nextClusterId',
-                    description: `ネットワーク${i + 1}: 遷移先クラスターIDが異なります`,
-                    details: {
-                        ref: nextClusterId1 || '未設定',
-                        up: nextClusterId2 || '未設定'
-                    }
-                });
-            }
-        }
-        
-        if (document.getElementById('network_skip')?.checked) {
-            if (skip1 !== skip2) {
-                result.differences.push({
-                    type: 'network',
-                    category: 'skip',
-                    description: `ネットワーク${i + 1}: スキップ設定が異なります`,
-                    details: {
-                        ref: skip1 || '未設定',
-                        up: skip2 || '未設定'
-                    }
-                });
-            }
-        }
-        
-        if (document.getElementById('network_condition')?.checked) {
-            if (condition1 !== condition2) {
-                result.differences.push({
-                    type: 'network',
-                    category: 'condition',
-                    description: `ネットワーク${i + 1}: 条件設定が異なります`,
-                    details: {
-                        ref: condition1 || '未設定',
-                        up: condition2 || '未設定'
-                    }
-                });
-            }
-        }
-        
-        // その他のネットワーク設定の比較
-        if (nextAutoInputStart1 !== nextAutoInputStart2) {
+        if (network1 && !network2) {
             result.differences.push({
                 type: 'network',
-                category: 'nextAutoInputStart',
-                description: `ネットワーク${i + 1}: 後続クラスターの自動入力開始位置が異なります`,
+                category: 'network_only_in_ref',
+                description: `ネットワーク（${edgeDesc}）: 基準XMLにのみ存在します`,
                 details: {
-                    ref: formatNextAutoInputStart(nextAutoInputStart1),
-                    up: formatNextAutoInputStart(nextAutoInputStart2)
+                    ref: 'あり',
+                    up: 'なし'
                 }
             });
+            continue;
         }
-        
-        if (nextAutoInput1 !== nextAutoInput2) {
-            result.differences.push({
-                type: 'network',
-                category: 'nextAutoInput',
-                description: `ネットワーク${i + 1}: 次自動入力が異なります`,
-                details: {
-                    ref: nextAutoInput1 || '未設定',
-                    up: nextAutoInput2 || '未設定'
-                }
-            });
-        }
-        
-        if (nextAutoInputEdit1 !== nextAutoInputEdit2) {
-            result.differences.push({
-                type: 'network',
-                category: 'nextAutoInputEdit',
-                description: `ネットワーク${i + 1}: 次自動入力編集が異なります`,
-                details: {
-                    ref: nextAutoInputEdit1 || '未設定',
-                    up: nextAutoInputEdit2 || '未設定'
-                }
-            });
-        }
-        
-        if (noNeedToFillOut1 !== noNeedToFillOut2) {
-            result.differences.push({
-                type: 'network',
-                category: 'noNeedToFillOut',
-                description: `ネットワーク${i + 1}: 記入不要設定が異なります`,
-                details: {
-                    ref: noNeedToFillOut1 || '未設定',
-                    up: noNeedToFillOut2 || '未設定'
-                }
-            });
-        }
-        
-        if (skip1 !== skip2) {
-            result.differences.push({
-                type: 'network',
-                category: 'skip',
-                description: `ネットワーク${i + 1}: スキップ設定が異なります`,
-                details: {
-                    ref: skip1 || '未設定',
-                    up: skip2 || '未設定'
-                }
-            });
-        }
-        
-        if (condition1 !== condition2) {
-            result.differences.push({
-                type: 'network',
-                category: 'condition',
-                description: `ネットワーク${i + 1}: 条件設定が異なります`,
-                details: {
-                    ref: condition1 || '未設定',
-                    up: condition2 || '未設定'
-                }
-            });
-        }
-        
-        // バリューリンクの比較
-        const valueLinks1 = network1.querySelectorAll('valueLinks valueLink');
-        const valueLinks2 = network2.querySelectorAll('valueLinks valueLink');
-        
-        if (valueLinks1.length !== valueLinks2.length) {
-            result.differences.push({
-                type: 'network',
-                category: 'valueLinks_count',
-                description: `ネットワーク${i + 1}: バリューリンク数が異なります`,
-                details: {
-                    ref: valueLinks1.length,
-                    up: valueLinks2.length
-                }
-            });
-        } else {
-            // バリューリンクの詳細比較
-            valueLinks1.forEach((valueLink1, j) => {
-                const valueLink2 = valueLinks2[j];
-                if (valueLink2) {
-                    const parentValue1 = valueLink1.querySelector('parentValue')?.textContent;
-                    const parentValue2 = valueLink2.querySelector('parentValue')?.textContent;
-                    const childValue1 = valueLink1.querySelector('childValue')?.textContent;
-                    const childValue2 = valueLink2.querySelector('childValue')?.textContent;
-                    
-                    if (parentValue1 !== parentValue2) {
-                        result.differences.push({
-                            type: 'valueLink',
-                            category: 'parentValue',
-                            description: `ネットワーク${i + 1}のバリューリンク${j + 1}: 親値が異なります`,
-                            details: {
-                                ref: parentValue1 || '未設定',
-                                up: parentValue2 || '未設定'
-                            }
-                        });
-                    }
-                    
-                    if (childValue1 !== childValue2) {
-                        result.differences.push({
-                            type: 'valueLink',
-                            category: 'childValue',
-                            description: `ネットワーク${i + 1}のバリューリンク${j + 1}: 子値が異なります`,
-                            details: {
-                                ref: childValue1 || '未設定',
-                                up: childValue2 || '未設定'
-                            }
-                        });
-                    }
-                }
-            });
-        }
+
+        compareNetworkFieldsPaired(network1, network2, edgeDesc, result);
+        compareValueLinksForEdge(network1, network2, edgeDesc, result);
     }
-    
+
     // バリューリンクの総数比較
     const valueLinks1 = doc1.querySelectorAll('networks network valueLinks valueLink');
     const valueLinks2 = doc2.querySelectorAll('networks network valueLinks valueLink');
@@ -638,29 +660,75 @@ function compareNetworksAndValueLinks(doc1, doc2, result) {
 }
 
 function compareChoiceSettings(doc1, doc2, result) {
-    // MultipleChoiceNumberクラスターの比較
-    const multipleChoices1 = Array.from(doc1.querySelectorAll('clusters cluster')).filter(cl => 
-        cl.querySelector('type')?.textContent === 'MultipleChoiceNumber'
+    // MultipleChoiceNumberクラスターの件数（構造タブ用）
+    const multipleChoices1 = Array.from(doc1.querySelectorAll('clusters cluster')).filter(
+        (cl) => cl.querySelector('type')?.textContent === 'MultipleChoiceNumber'
     );
-    const multipleChoices2 = Array.from(doc2.querySelectorAll('clusters cluster')).filter(cl => 
-        cl.querySelector('type')?.textContent === 'MultipleChoiceNumber'
+    const multipleChoices2 = Array.from(doc2.querySelectorAll('clusters cluster')).filter(
+        (cl) => cl.querySelector('type')?.textContent === 'MultipleChoiceNumber'
     );
-    
+
     result.structure.multipleChoices.ref = multipleChoices1.length;
     result.structure.multipleChoices.up = multipleChoices2.length;
     result.structure.multipleChoices.match = multipleChoices1.length === multipleChoices2.length;
-    
-    // SelectMasterクラスターの比較
-    const selectMasters1 = Array.from(doc1.querySelectorAll('clusters cluster')).filter(cl => 
-        cl.querySelector('type')?.textContent === 'SelectMaster'
+
+    // SelectMasterクラスターの件数（構造タブ用）
+    const selectMasters1 = Array.from(doc1.querySelectorAll('clusters cluster')).filter(
+        (cl) => cl.querySelector('type')?.textContent === 'SelectMaster'
     );
-    const selectMasters2 = Array.from(doc2.querySelectorAll('clusters cluster')).filter(cl => 
-        cl.querySelector('type')?.textContent === 'SelectMaster'
+    const selectMasters2 = Array.from(doc2.querySelectorAll('clusters cluster')).filter(
+        (cl) => cl.querySelector('type')?.textContent === 'SelectMaster'
     );
-    
+
     result.structure.selectMasters.ref = selectMasters1.length;
     result.structure.selectMasters.up = selectMasters2.length;
     result.structure.selectMasters.match = selectMasters1.length === selectMasters2.length;
+
+    // シートごと・クラスター順に選択肢（choices）の内容を比較（STEP.1 等のメイン差分一覧に反映）
+    const sheets1 = doc1.querySelectorAll('sheets sheet');
+    const sheets2 = doc2.querySelectorAll('sheets sheet');
+    const sheetCount = Math.min(sheets1.length, sheets2.length);
+
+    for (let s = 0; s < sheetCount; s++) {
+        const clusters1 = sheets1[s].querySelectorAll('clusters cluster');
+        const clusters2 = sheets2[s].querySelectorAll('clusters cluster');
+        const maxIdx = Math.max(clusters1.length, clusters2.length);
+
+        for (let i = 0; i < maxIdx; i++) {
+            const c1 = clusters1[i];
+            const c2 = clusters2[i];
+            if (!c1 || !c2) {
+                continue;
+            }
+
+            const type1 = c1.querySelector('type')?.textContent || '';
+            const type2 = c2.querySelector('type')?.textContent || '';
+            if (type1 !== type2 || !CLUSTER_TYPES_WITH_CHOICE_LIST.has(type1)) {
+                continue;
+            }
+
+            const list1 = extractChoicesFromCluster(c1);
+            const list2 = extractChoicesFromCluster(c2);
+            const { hasDifferences, differences: choiceMsgs } = compareChoiceLists(list1, list2);
+
+            if (!hasDifferences) {
+                continue;
+            }
+
+            const location = `シート${s + 1}・クラスター${i + 1}（${getClusterTypeJapanese(type1)}）`;
+            for (const msg of choiceMsgs) {
+                result.differences.push({
+                    type: 'choiceSettings',
+                    description: `${location}: ${msg}`,
+                    details: {
+                        sheet: s + 1,
+                        clusterIndex: i + 1,
+                        clusterType: type1
+                    }
+                });
+            }
+        }
+    }
 }
 
 /**
@@ -684,7 +752,7 @@ function compareCarbonCopy(doc1, doc2, result) {
         const carbonCopy2 = cluster2.querySelector('carbonCopy');
         
         // カーボンコピーの有無の比較
-        if (document.getElementById('carbon_existence')?.checked) {
+        if (isXmlCompareOptionOn('carbon_existence')) {
             const hasCarbon1 = carbonCopy1 && carbonCopy1.querySelector('targetCluster');
             const hasCarbon2 = carbonCopy2 && carbonCopy2.querySelector('targetCluster');
             
@@ -708,7 +776,7 @@ function compareCarbonCopy(doc1, doc2, result) {
             
             if (target1 && target2) {
                 // コピー先シート・クラスターの比較
-                if (document.getElementById('carbon_target')?.checked) {
+                if (isXmlCompareOptionOn('carbon_target')) {
                     const sheetNo1 = target1.querySelector('sheetNo')?.textContent || '';
                     const sheetNo2 = target2.querySelector('sheetNo')?.textContent || '';
                     const clusterId1 = target1.querySelector('clusterId')?.textContent || '';
@@ -728,7 +796,7 @@ function compareCarbonCopy(doc1, doc2, result) {
                 }
                 
                 // 編集可否設定の比較
-                if (document.getElementById('carbon_edit')?.checked) {
+                if (isXmlCompareOptionOn('carbon_edit')) {
                     const edit1 = target1.querySelector('edit')?.textContent || '';
                     const edit2 = target2.querySelector('edit')?.textContent || '';
                     
@@ -746,7 +814,7 @@ function compareCarbonCopy(doc1, doc2, result) {
                 }
             } else if (target1 || target2) {
                 // 片方だけにtargetClusterがある場合
-                if (document.getElementById('carbon_target')?.checked) {
+                if (isXmlCompareOptionOn('carbon_target')) {
                     result.differences.push({
                         type: 'carbonCopy',
                         category: 'target',
@@ -785,7 +853,7 @@ function compareReportCopy(doc1, doc2, result) {
         // 両方に帳票コピーがある場合、詳細を比較
         if (reportCopy1 && reportCopy2) {
             // 表示設定の比較
-            if (document.getElementById('report_display')?.checked) {
+            if (isXmlCompareOptionOn('report_display')) {
                 const display1 = reportCopy1.querySelector('displayDefaultValue')?.textContent || '';
                 const display2 = reportCopy2.querySelector('displayDefaultValue')?.textContent || '';
                 
@@ -803,7 +871,7 @@ function compareReportCopy(doc1, doc2, result) {
             }
             
             // クリア設定の比較
-            if (document.getElementById('report_clear')?.checked) {
+            if (isXmlCompareOptionOn('report_clear')) {
                 const clear1 = reportCopy1.querySelector('clear')?.textContent || '';
                 const clear2 = reportCopy2.querySelector('clear')?.textContent || '';
                 

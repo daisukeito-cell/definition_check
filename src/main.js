@@ -31,7 +31,7 @@ import { compareNetworkSettings as compareNetworkSettingsCore, checkNetworkDiffe
  *    - ネットワーク設定の差分ハイライト表示
  * 
  * 4. 比較結果表示
- *    - タブ形式での結果表示（比較結果、構造比較、クラスター設定、ネットワーク設定、設定）
+ *    - タブ形式での結果表示（比較結果、構造比較、クラスター設定、ネットワーク設定）
  *    - フィルタリング機能（全て表示、設定が異なる、設定が同じ）
  * 
  * 【主要な関数】
@@ -1159,51 +1159,6 @@ function deselectAllSettings() {
     document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
         checkbox.checked = false;
     });
-}
-
-// 設定タブ用の関数
-function selectAllDisplaySettings() {
-    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-        checkbox.checked = true;
-    });
-    // 設定変更後にレイアウトを更新
-    updatePdfLayout();
-}
-
-function clearAllDisplaySettings() {
-    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-        checkbox.checked = false;
-    });
-    // 設定変更後にレイアウトを更新
-    updatePdfLayout();
-}
-
-function resetDisplaySettings() {
-    // デフォルト設定に戻す
-    const defaultSettings = {
-        'show_cluster_id': true,
-        'show_cluster_name': true,
-        'show_cluster_type': true,
-        'show_network_info': true,
-        'show_value_links': true,
-        'show_network_position': false,
-        'show_network_restrictions': false,
-        'show_choices': true,
-        'show_parameters': true,
-        'show_choice_details': false,
-        'show_differences': true,
-        'show_tooltips': true
-    };
-    
-    Object.keys(defaultSettings).forEach(settingId => {
-        const checkbox = document.getElementById(settingId);
-        if (checkbox) {
-            checkbox.checked = defaultSettings[settingId];
-        }
-    });
-    
-    // 設定変更後にレイアウトを更新
-    updatePdfLayout();
 }
 
 async function updatePdfLayout() {
@@ -2445,68 +2400,6 @@ function closeNetworkModal(event) {
     }
 }
 
-// 新比較機能のテスト関数
-function testNewComparisonFeatures() {
-    if (!xmlData1 || !xmlData2) {
-        alert('テストを実行するには、基準XMLと比較XMLの両方を選択してください。');
-        return;
-    }
-    
-    let testResults = `🧪 新比較機能テスト結果\n`;
-    testResults += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    
-    const parser = new DOMParser();
-    const doc1 = parser.parseFromString(xmlData1, 'text/xml');
-    const doc2 = parser.parseFromString(xmlData2, 'text/xml');
-    
-    // ネットワーク位置比較のテスト
-    const networks2 = doc2.querySelectorAll('networks network');
-    if (networks2.length > 0) {
-        const network = networks2[0];
-        const positionDiff = getNetworkPositionDifference(network, 0);
-        testResults += `📍 ネットワーク位置比較テスト:\n`;
-        testResults += `• 差分あり: ${positionDiff.hasDifferences ? 'はい' : 'いいえ'}\n`;
-        if (positionDiff.hasDifferences) {
-            testResults += `• 差分内容: ${positionDiff.differences.join(', ')}\n`;
-        }
-        testResults += `\n`;
-    }
-    
-    // ネットワーク制限設定比較のテスト
-    if (networks2.length > 0) {
-        const network = networks2[0];
-        const restrictionDiff = getNetworkRestrictionDifference(network, 0);
-        testResults += `🔒 ネットワーク制限設定比較テスト:\n`;
-        testResults += `• 差分あり: ${restrictionDiff.hasDifferences ? 'はい' : 'いいえ'}\n`;
-        if (restrictionDiff.hasDifferences) {
-            testResults += `• 差分内容: ${restrictionDiff.differences.join(', ')}\n`;
-        }
-        testResults += `\n`;
-    }
-    
-    // 選択肢詳細比較のテスト
-    const sheets2 = doc2.querySelectorAll('sheets sheet');
-    if (sheets2.length > 0 && currentSheetIndex < sheets2.length) {
-        const sheet2 = sheets2[currentSheetIndex];
-        const clusters2 = sheet2.querySelectorAll('clusters cluster');
-        if (clusters2.length > 0) {
-            const cluster = clusters2[0];
-            const choiceDiff = getChoiceDifference(cluster, 0);
-            testResults += `📋 選択肢詳細比較テスト:\n`;
-            testResults += `• 差分あり: ${choiceDiff.hasDifferences ? 'はい' : 'いいえ'}\n`;
-            if (choiceDiff.hasDifferences) {
-                testResults += `• 差分内容: ${choiceDiff.differences.join(', ')}\n`;
-            }
-            testResults += `\n`;
-        }
-    }
-    
-    testResults += `✅ テスト完了！\n`;
-    testResults += `各機能の詳細は、クラスターやネットワークをクリックして確認してください。`;
-    
-    alert(testResults);
-}
-
 // デバッグ情報の表示/非表示を切り替える関数
 function toggleDebugInfo() {
     const debugInfo = document.getElementById('debugInfo');
@@ -3180,7 +3073,13 @@ function selectCluster(index) {
     });
     
     // 選択肢の詳細比較を実行（比較XMLのクラスターが存在する場合のみ）
-    let choiceDiff = { hasDifferences: false, differences: [], choices: [], ref_choices: [] };
+    let choiceDiff = {
+        hasDifferences: false,
+        differences: [],
+        choices: [],
+        ref_choices: [],
+        choiceDisplayColumns: { refColumn: [], compColumn: [] }
+    };
     if (cluster2) {
         choiceDiff = getChoiceDifference(cluster2, index);
     }
@@ -3405,7 +3304,7 @@ function selectCluster(index) {
         }
     }
     
-    // 選択肢
+    // 選択肢（単一選択・複数選択・トグル等：値ベースで差分検出）
     if (choiceDiff.hasDifferences) {
         differenceItems.push({
             label: '選択肢',
@@ -3413,6 +3312,7 @@ function selectCluster(index) {
             comp: choiceDiff.choices.length > 0 ? `${choiceDiff.choices.length}個` : 'なし',
             refRaw: choiceDiff.ref_choices,
             compRaw: choiceDiff.choices,
+            choiceDisplayColumns: choiceDiff.choiceDisplayColumns || { refColumn: [], compColumn: [] },
             isChoices: true
         });
     }
@@ -3426,33 +3326,57 @@ function selectCluster(index) {
         
         differenceItems.forEach(item => {
             if (item.isChoices) {
-                // 選択肢の詳細表示
+                const formatChoiceBlock = (ch) => {
+                    const v =
+                        ch.value !== undefined && String(ch.value).length > 0
+                            ? escapeHtml(String(ch.value))
+                            : '（空）';
+                    const l =
+                        ch.label !== undefined && String(ch.label).length > 0
+                            ? escapeHtml(String(ch.label))
+                            : '（空）';
+                    return `<div class="cluster-choice-pair-lines">値：${v}<br>ラベル：${l}</div>`;
+                };
+                const cols = item.choiceDisplayColumns || { refColumn: [], compColumn: [] };
+                const refBlocks = (cols.refColumn || [])
+                    .map((entry) => {
+                        const orphanClass = entry.isOrphan ? ' cluster-choice-block--orphan' : '';
+                        return `<div class="cluster-choice-block${orphanClass}">${formatChoiceBlock(entry.choice)}</div>`;
+                    })
+                    .join('');
+                const compBlocks = (cols.compColumn || [])
+                    .map((entry) => {
+                        const orphanClass = entry.isOrphan ? ' cluster-choice-block--orphan' : '';
+                        return `<div class="cluster-choice-block${orphanClass}">${formatChoiceBlock(entry.choice)}</div>`;
+                    })
+                    .join('');
                 html += `
-                    <div class="cluster-difference-item">
+                    <div class="cluster-difference-item cluster-difference-item--choices">
                         <div class="cluster-difference-item-label">${escapeHtml(item.label)}</div>
                         <div class="cluster-difference-item-value">
                             <strong>基準XML:</strong> ${escapeHtml(item.ref)}<br>
                             <strong>比較XML:</strong> ${escapeHtml(item.comp)}
                         </div>
-                        <div style="margin-top: 0.75rem;">
-                            <strong>基準XMLの選択肢:</strong>
-                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                                ${item.refRaw.length > 0 ? 
-                                    item.refRaw.map((choice, i) => 
-                                        `<li>選択肢${i + 1}: ${escapeHtml(choice.label)} (値: ${escapeHtml(choice.value)}, 選択: ${choice.selected === 'true' ? 'あり' : 'なし'})</li>`
-                                    ).join('') : 
-                                    '<li>選択肢なし</li>'
-                                }
-                            </ul>
-                            <strong>比較XMLの選択肢:</strong>
-                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                                ${item.compRaw.length > 0 ? 
-                                    item.compRaw.map((choice, i) => 
-                                        `<li>選択肢${i + 1}: ${escapeHtml(choice.label)} (値: ${escapeHtml(choice.value)}, 選択: ${choice.selected === 'true' ? 'あり' : 'なし'})</li>`
-                                    ).join('') : 
-                                    '<li>選択肢なし</li>'
-                                }
-                            </ul>
+                        <div class="cluster-choice-pair-wrap">
+                            <table class="cluster-choice-pair-table" aria-label="選択肢の比較">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">基準XML</th>
+                                        <th scope="col">比較XML</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="cluster-choice-pair-row cluster-choice-pair-row--columns">
+                                        <td class="cluster-choice-pair-cell">
+                                            <div class="cluster-choice-col-list">${refBlocks || '<span class="cluster-choice-empty">—</span>'}</div>
+                                        </td>
+                                        <td class="cluster-choice-pair-cell">
+                                            <div class="cluster-choice-col-list">${compBlocks || '<span class="cluster-choice-empty">—</span>'}</div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p class="cluster-choice-pair-legend">相手側に同じ値の選択肢がない項目は<span class="cluster-choice-legend-mark">赤</span>表示です。</p>
                         </div>
                     </div>
                 `;
@@ -5406,34 +5330,7 @@ function bindUiEvents() {
         });
     });
 
-    const resetBtn = document.getElementById('resetDisplaySettingsBtn');
-    if (resetBtn) resetBtn.addEventListener('click', resetDisplaySettings);
-
-    const selectAllBtn = document.getElementById('selectAllDisplaySettingsBtn');
-    if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllDisplaySettings);
-
-    const clearAllBtn = document.getElementById('clearAllDisplaySettingsBtn');
-    if (clearAllBtn) clearAllBtn.addEventListener('click', clearAllDisplaySettings);
-
-    const testBtn = document.getElementById('testNewComparisonFeaturesBtn');
-    if (testBtn) testBtn.addEventListener('click', testNewComparisonFeatures);
-
-    const updateTargets = [
-        'pdfFileSelect',
-        'pdfDisplayMode',
-        'show_cluster_id',
-        'show_cluster_name',
-        'show_cluster_type',
-        'show_network_info',
-        'show_value_links',
-        'show_network_position',
-        'show_network_restrictions',
-        'show_choices',
-        'show_parameters',
-        'show_choice_details',
-        'show_differences',
-        'show_tooltips'
-    ];
+    const updateTargets = ['pdfFileSelect', 'pdfDisplayMode'];
     updateTargets.forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('change', updatePdfLayout);

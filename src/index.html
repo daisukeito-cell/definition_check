@@ -135,7 +135,6 @@
                 <button class="tab" data-tab="structure" style="display: none;">構造比較</button>
                 <button class="tab active" data-tab="pdf-layout" title="シート上の項目ごとの差分を確認">クラスター設定</button>
                 <button class="tab" data-tab="network-layout" title="つながり・遷移の差分を確認">ネットワーク設定</button>
-                <button class="tab" data-tab="settings" style="display: none;">設定</button>
             </div>
             <div class="tab-content" id="resultsTab" style="display: none;">
                 <div class="comparison-results" id="resultsContent">
@@ -316,283 +315,6 @@
                     </div>
                 </div>
             </div>
-            
-            <div class="tab-content" id="settingsTab" style="display: none;">
-                <div class="comparison-settings" id="settingsContent">
-                    <div class="settings-header">
-                        <h3>⚙️ 表示設定</h3>
-                        <p>クラスター設定上に表示したい情報を選択してください。チェックした項目がクラスターにマウスを載せたときに表示されます。</p>
-                    </div>
-                    
-                    <div class="settings-grid">
-                        <div class="setting-category">
-                            <h4>🔢 クラスター情報</h4>
-                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_cluster_id">
-                                    <span class="checkmark"></span>
-                                    クラスターID
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_cluster_name">
-                                    <span class="checkmark"></span>
-                                    クラスター名称
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_cluster_type">
-                                    <span class="checkmark"></span>
-                                    クラスター種別
-                                </label>
-                            </div>
-                        </div>
-                        
-
-                        
-                        <div class="setting-category">
-                            <h4>🔗 ネットワーク情報</h4>
-                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_network_info">
-                                    <span class="checkmark"></span>
-                                    ネットワーク設定
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_value_links">
-                                    <span class="checkmark"></span>
-                                    バリューリンク
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_network_position">
-                                    <span class="checkmark"></span>
-                                    ネットワーク位置
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_network_restrictions">
-                                    <span class="checkmark"></span>
-                                    ネットワーク制限設定
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>📋 選択肢・設定情報</h4>
-                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_choices">
-                                    <span class="checkmark"></span>
-                                    選択肢設定
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_parameters">
-                                    <span class="checkmark"></span>
-                                    入力パラメータ
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_choice_details">
-                                    <span class="checkmark"></span>
-                                    選択肢詳細比較
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>🎨 表示オプション</h4>
-                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">マウスホバー時に表示される情報</p>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_differences">
-                                    <span class="checkmark"></span>
-                                    差分ハイライト
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="show_tooltips">
-                                    <span class="checkmark"></span>
-                                    詳細ツールチップ
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="settings-actions">
-                        <button class="action-btn" id="resetDisplaySettingsBtn">🔄 設定リセット</button>
-                        <button class="action-btn" id="selectAllDisplaySettingsBtn">✅ 全て選択</button>
-                        <button class="action-btn" id="clearAllDisplaySettingsBtn">❌ 全て解除</button>
-                    </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>🔄 カーボンコピー</h4>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="carbon_existence" checked>
-                                    <span class="checkmark"></span>
-                                    設定の有無
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="carbon_target" checked>
-                                    <span class="checkmark"></span>
-                                    コピー先シート・クラスター
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="carbon_edit" checked>
-                                    <span class="checkmark"></span>
-                                    編集可否設定
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>📊 帳票コピー</h4>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="report_display" checked>
-                                    <span class="checkmark"></span>
-                                    表示設定
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="report_clear" checked>
-                                    <span class="checkmark"></span>
-                                    クリア設定
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>🔄 ネットワーク制限</h4>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="network_sheets" checked>
-                                    <span class="checkmark"></span>
-                                    遷移元・先シート
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="network_clusters" checked>
-                                    <span class="checkmark"></span>
-                                    遷移元・先クラスター
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="network_skip" checked>
-                                    <span class="checkmark"></span>
-                                    スキップ設定
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="network_condition" checked>
-                                    <span class="checkmark"></span>
-                                    条件設定
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>🔗 バリューリンク</h4>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="value_combination" checked>
-                                    <span class="checkmark"></span>
-                                    親子関係の組み合わせ
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="value_select" checked>
-                                    <span class="checkmark"></span>
-                                    選択値設定
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>📅 クラスター種別詳細</h4>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="cluster_type_detail" checked>
-                                    <span class="checkmark"></span>
-                                    クラスター種別の詳細比較
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="date_calendar_compare" checked>
-                                    <span class="checkmark"></span>
-                                    日付・カレンダー比較
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="numeric_calculate_compare" checked>
-                                    <span class="checkmark"></span>
-                                    数値・計算比較
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="setting-category">
-                            <h4>🔗 ネットワーク・バリューリンク</h4>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="network_value_compare" checked>
-                                    <span class="checkmark"></span>
-                                    ネットワーク・バリューリンク・カスタムマスター比較
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="setting-category">
-                            <h4>📋 選択肢設定</h4>
-                            <div class="setting-item">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="choice_settings_compare" checked>
-                                    <span class="checkmark"></span>
-                                    選択肢設定の詳細比較
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-category">
-                            <h4>🧪 新比較機能テスト</h4>
-                            <p style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">新しく追加された比較機能のテスト</p>
-                            <div class="setting-item">
-                                <button class="action-btn" id="testNewComparisonFeaturesBtn" style="width: 100%; margin-top: 0.5rem;">
-                                    🧪 新比較機能テスト
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-
-                </div>
-            </div>
         </div>
     </div>
 
@@ -655,15 +377,65 @@
                 <p class="onboarding-welcome-lead">このページでは、動画教材の視聴・演習ファイルの利用、および帳票定義XMLの比較確認ができます。</p>
             </div>
             <div class="onboarding-welcome-body">
-                <h3 class="onboarding-welcome-subtitle">このページでできること</h3>
-                <ol class="onboarding-welcome-list">
-                    <li><strong>学習</strong>：動画で手順を確認し、演習用Excelや手順PDFをダウンロードできます。</li>
-                    <li><strong>比較</strong>：基準となる定義（STEP.1 / STEP.2）と、あなたが用意したXMLを読み込み、差分を一覧・レイアウト・ネットワークで確認できます。</li>
-                    <li><strong>端末準備</strong>：ConMas Excelアドイン、ConMasDesigner、i-Reporterアプリの導入が未完了の場合は、別画面の手順ガイドで確認できます。</li>
-                </ol>
+                <div id="onboardingBlockFeatures" class="onboarding-welcome-block">
+                    <h3 class="onboarding-welcome-subtitle onboarding-welcome-subtitle--accent">このページでできること</h3>
+                    <ol class="onboarding-welcome-list onboarding-welcome-list--features">
+                        <li><span class="onboarding-li-label">学習</span><span class="onboarding-li-body">動画で手順を確認し、演習用Excelや手順PDFをダウンロードできます。</span></li>
+                        <li><span class="onboarding-li-label">比較</span><span class="onboarding-li-body">基準となる定義（STEP.1 / STEP.2）と、あなたが用意したXMLを読み込み、差分を一覧・レイアウト・ネットワークで確認できます。</span></li>
+                        <li><span class="onboarding-li-label">端末準備</span><span class="onboarding-li-body">ConMas Excelアドイン、ConMasDesigner、i-Reporterアプリの導入が未完了の場合は、別画面の手順ガイドで確認できます。</span></li>
+                    </ol>
+                </div>
+                <div id="onboardingBlockPurpose" class="onboarding-welcome-block" hidden>
+                    <h3 class="onboarding-welcome-subtitle onboarding-welcome-subtitle--accent">このページの目的</h3>
+                    <div class="onboarding-welcome-purpose">
+                        <div class="onboarding-purpose-intro">
+                            <p class="onboarding-purpose-intro-text">紙で運用していた帳票を電子化し、帳票定義の作成から公開、i-Reporterアプリで入力するまでをつなげるための準備に慣れることが、このトレーニングルームのねらいです。下の図は、その帳票定義作成までの流れの全体像です。</p>
+                        </div>
+                        <figure class="onboarding-purpose-figure">
+                            <img
+                                src="Material/form_definition_flow.png"
+                                loading="lazy"
+                                decoding="async"
+                                alt="帳票定義作成までの流れ。手順は左から、Excelファイルの準備、帳票定義の作成、帳票定義の公開、i-Reporterアプリの操作の4段階。"
+                            />
+                        </figure>
+                        <p class="onboarding-welcome-purpose-lead"><span class="onboarding-flow-heading">各ステップの内容（図に対応）</span></p>
+                        <ol class="onboarding-welcome-list onboarding-welcome-list--flow">
+                            <li>
+                                <span class="onboarding-flow-step">1</span>
+                                <span class="onboarding-flow-text">
+                                    <strong>Excelファイルの準備</strong>
+                                    <span class="onboarding-flow-detail">レイアウトの設定、クラスターの設定</span>
+                                </span>
+                            </li>
+                            <li>
+                                <span class="onboarding-flow-step">2</span>
+                                <span class="onboarding-flow-text">
+                                    <strong>帳票定義の作成</strong>（ConMas Designer）
+                                    <span class="onboarding-flow-detail">選択項目の作成、入力順・入力制限の設定、表示方法の変更など</span>
+                                </span>
+                            </li>
+                            <li>
+                                <span class="onboarding-flow-step">3</span>
+                                <span class="onboarding-flow-text">
+                                    <strong>帳票定義の公開</strong>
+                                    <span class="onboarding-flow-detail">定義をサーバーに公開し、利用できる状態にする</span>
+                                </span>
+                            </li>
+                            <li>
+                                <span class="onboarding-flow-step">4</span>
+                                <span class="onboarding-flow-text">
+                                    <strong>i-Reporterアプリの操作</strong>
+                                    <span class="onboarding-flow-detail">入力帳票の作成・確認</span>
+                                </span>
+                            </li>
+                        </ol>
+                        <p class="onboarding-purpose-note">このページでは、動画・演習ファイルで手順を確認したり、基準となる定義（STEP.1／STEP.2）と自分が用意したXMLを比較したりしながら、上記の準備を練習できます。端末へのインストールは、別画面の手順ガイドから進められます。</p>
+                    </div>
+                </div>
 
                 <div id="onboardingStepTerminal" class="onboarding-welcome-step">
-                    <h3 class="onboarding-welcome-subtitle">端末の準備はできていますか？</h3>
+                    <h3 class="onboarding-welcome-subtitle onboarding-welcome-subtitle--accent">端末の準備はできていますか？</h3>
                     <p class="onboarding-welcome-note">初めての方は、以下から状況に合わせて進めてください。</p>
                     <div class="onboarding-welcome-actions">
                         <button type="button" class="onboarding-btn onboarding-btn-secondary" id="onboardingBtnUnset">
@@ -677,7 +449,7 @@
                 </div>
 
                 <div id="onboardingStepReady" class="onboarding-welcome-step" hidden>
-                    <h3 class="onboarding-welcome-subtitle">トレーニングを始める</h3>
+                    <h3 class="onboarding-welcome-subtitle onboarding-welcome-subtitle--accent">トレーニングを始める</h3>
                     <p class="onboarding-welcome-note">準備ができたら、下のボタンでメイン画面に進みます。</p>
                     <label class="onboarding-welcome-checkbox">
                         <input type="checkbox" id="onboardingDontShowAgain" />

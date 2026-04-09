@@ -1,3 +1,92 @@
+/**
+ * 遷移（シート番号・クラスターIDの組）が一致する network を返す。XML内の並び順に依存しない。
+ */
+export function findNetworkInDocumentByEdge(networksNodeList, networkFromOtherDoc) {
+    const ps = networkFromOtherDoc.querySelector('prevSheetNo')?.textContent ?? '';
+    const pc = networkFromOtherDoc.querySelector('prevClusterId')?.textContent ?? '';
+    const ns = networkFromOtherDoc.querySelector('nextSheetNo')?.textContent ?? '';
+    const nc = networkFromOtherDoc.querySelector('nextClusterId')?.textContent ?? '';
+    for (let i = 0; i < networksNodeList.length; i++) {
+        const n = networksNodeList[i];
+        if (
+            (n.querySelector('prevSheetNo')?.textContent ?? '') === ps &&
+            (n.querySelector('prevClusterId')?.textContent ?? '') === pc &&
+            (n.querySelector('nextSheetNo')?.textContent ?? '') === ns &&
+            (n.querySelector('nextClusterId')?.textContent ?? '') === nc
+        ) {
+            return n;
+        }
+    }
+    return null;
+}
+
+function buildValueLinkMapByParent(valueLinkNodes) {
+    const map = new Map();
+    Array.from(valueLinkNodes).forEach((vl, i) => {
+        const p = vl.querySelector('parentValue')?.textContent ?? '';
+        let k = p !== '' ? p : `__empty_${i}`;
+        let n = 0;
+        while (map.has(k)) {
+            n += 1;
+            k = `${p}__dup${n}`;
+        }
+        map.set(k, vl);
+    });
+    return map;
+}
+
+/** 親値をキーに selectValues / childValue を比較（並び順に依存しない） */
+function valueLinksSemanticallyDiffer(valueLinks1, valueLinks2) {
+    const m1 = buildValueLinkMapByParent(valueLinks1);
+    const m2 = buildValueLinkMapByParent(valueLinks2);
+    const allKeys = new Set([...m1.keys(), ...m2.keys()]);
+    for (const k of allKeys) {
+        const v1 = m1.get(k);
+        const v2 = m2.get(k);
+        if (!v1 || !v2) return true;
+        const s1 = v1.querySelector('selectValues')?.textContent ?? '';
+        const s2 = v2.querySelector('selectValues')?.textContent ?? '';
+        const c1 = v1.querySelector('childValue')?.textContent ?? '';
+        const c2 = v2.querySelector('childValue')?.textContent ?? '';
+        if (s1 !== s2 || c1 !== c2) return true;
+    }
+    return false;
+}
+
+function appendValueLinkDifferenceMessages(differences, valueLinks1, valueLinks2) {
+    const m1 = buildValueLinkMapByParent(valueLinks1);
+    const m2 = buildValueLinkMapByParent(valueLinks2);
+    const keys = [...new Set([...m1.keys(), ...m2.keys()])].sort((a, b) => a.localeCompare(b, 'ja'));
+    for (const k of keys) {
+        const v1 = m1.get(k);
+        const v2 = m2.get(k);
+        const pl = k.startsWith('__empty') ? '（親なし）' : k;
+        if (!v1 && v2) {
+            differences.push(`バリューリンク（親:${pl}）: 比較XMLにのみ存在`);
+            continue;
+        }
+        if (v1 && !v2) {
+            differences.push(`バリューリンク（親:${pl}）: 基準XMLにのみ存在`);
+            continue;
+        }
+        const s1 = v1.querySelector('selectValues')?.textContent ?? '';
+        const s2 = v2.querySelector('selectValues')?.textContent ?? '';
+        const c1 = v1.querySelector('childValue')?.textContent ?? '';
+        const c2 = v2.querySelector('childValue')?.textContent ?? '';
+        const pv = v1.querySelector('parentValue')?.textContent || pl;
+        if (s1 !== s2) {
+            differences.push(
+                `バリューリンク（親:${pv}）: 選択値(selectValues) ${s1 || '未設定'} → ${s2 || '未設定'}`
+            );
+        }
+        if (c1 !== c2) {
+            differences.push(
+                `バリューリンク（親:${pv}）: 子値(childValue) ${c1 || '未設定'} → ${c2 || '未設定'}`
+            );
+        }
+    }
+}
+
 export function compareNetworkSettings(network1, network2) {
     const prevClusterId1 = network1.querySelector('prevClusterId')?.textContent || '';
     const prevClusterId2 = network2.querySelector('prevClusterId')?.textContent || '';
@@ -33,11 +122,6 @@ export function checkNetworkDifference(network, index, context = {}) {
 
     let network1 = null;
 
-    const currentPrevClusterId = network.querySelector('prevClusterId')?.textContent || '';
-    const currentNextClusterId = network.querySelector('nextClusterId')?.textContent || '';
-    const currentPrevSheetNo = network.querySelector('prevSheetNo')?.textContent || '';
-    const currentNextSheetNo = network.querySelector('nextSheetNo')?.textContent || '';
-
     if (currentNetworkId) {
         for (let i = 0; i < networks1.length; i++) {
             const net1 = networks1[i];
@@ -53,34 +137,12 @@ export function checkNetworkDifference(network, index, context = {}) {
             return true;
         }
     } else {
-        const currentSheetNumber = currentSheetIndex + 1;
-
-        for (let i = 0; i < networks1.length; i++) {
-            const net1 = networks1[i];
-            const net1PrevClusterId = net1.querySelector('prevClusterId')?.textContent || '';
-            const net1NextClusterId = net1.querySelector('nextClusterId')?.textContent || '';
-            const net1PrevSheetNo = net1.querySelector('prevSheetNo')?.textContent || '';
-            const net1NextSheetNo = net1.querySelector('nextSheetNo')?.textContent || '';
-
-            const clusterMatch = (net1PrevClusterId === currentPrevClusterId && net1NextClusterId === currentNextClusterId);
-            const sheetMatch = (!net1PrevSheetNo && !net1NextSheetNo && !currentPrevSheetNo && !currentNextSheetNo) ||
-                (net1PrevSheetNo && parseInt(net1PrevSheetNo) === currentSheetNumber) ||
-                (net1NextSheetNo && parseInt(net1NextSheetNo) === currentSheetNumber) ||
-                (currentPrevSheetNo && parseInt(currentPrevSheetNo) === currentSheetNumber) ||
-                (currentNextSheetNo && parseInt(currentNextSheetNo) === currentSheetNumber);
-
-            if (clusterMatch && sheetMatch) {
-                network1 = net1;
-                break;
-            }
-        }
-
+        network1 = findNetworkInDocumentByEdge(networks1, network);
         if (!network1) {
-            console.log('checkNetworkDifference: 基準XMLにマッチするネットワークが見つからない - 差分あり');
+            console.log('checkNetworkDifference: 基準XMLに同一遷移のネットワークが見つからない - 差分あり');
             return true;
         }
-
-        console.log('checkNetworkDifference: prevClusterId/nextClusterIdベースで比較');
+        console.log('checkNetworkDifference: 遷移キー（シート・クラスター）で基準XMLに対応づけ');
     }
 
     const network2 = network;
@@ -119,7 +181,7 @@ export function checkNetworkDifference(network, index, context = {}) {
     const nextAutoInputDiff = nextAutoInput1 !== nextAutoInput2;
     const nextAutoInputEditDiff = nextAutoInputEdit1 !== nextAutoInputEdit2;
     const noNeedToFillOutDiff = noNeedToFillOut1 !== noNeedToFillOut2;
-    const valueLinksDiff = valueLinks1.length !== valueLinks2.length;
+    const valueLinksDiff = valueLinksSemanticallyDiffer(valueLinks1, valueLinks2);
 
     const hasDifference = prevSheetDiff || prevClusterDiff || nextSheetDiff || nextClusterDiff ||
         skipDiff || conditionDiff || nextAutoInputStartDiff || nextAutoInputDiff ||
@@ -134,26 +196,6 @@ export function checkNetworkDifference(network, index, context = {}) {
         valueLinks: { ref: valueLinks1.length, up: valueLinks2.length, diff: valueLinksDiff },
         hasDifference: hasDifference
     });
-
-    if (valueLinks1.length === valueLinks2.length && valueLinks1.length > 0) {
-        for (let i = 0; i < valueLinks1.length; i++) {
-            const valueLink1 = valueLinks1[i];
-            const valueLink2 = valueLinks2[i];
-            if (valueLink2) {
-                const parentValue1 = valueLink1.querySelector('parentValue')?.textContent || '';
-                const parentValue2 = valueLink2.querySelector('parentValue')?.textContent || '';
-                const selectValues1 = valueLink1.querySelector('selectValues')?.textContent || '';
-                const selectValues2 = valueLink2.querySelector('selectValues')?.textContent || '';
-                const childValue1 = valueLink1.querySelector('childValue')?.textContent || '';
-                const childValue2 = valueLink2.querySelector('childValue')?.textContent || '';
-
-                if (parentValue1 !== parentValue2 || selectValues1 !== selectValues2 || childValue1 !== childValue2) {
-                    console.log(`checkNetworkDifference: バリューリンク${i}の差分 - parentValue: ${parentValue1} vs ${parentValue2}, selectValues: ${selectValues1} vs ${selectValues2}, childValue: ${childValue1} vs ${childValue2}`);
-                    return true;
-                }
-            }
-        }
-    }
 
     return hasDifference;
 }
@@ -305,13 +347,14 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
             };
         }
     } else {
-        if (index >= networks1.length) {
+        network1 = findNetworkInDocumentByEdge(networks1, network);
+        if (!network1) {
             const prevClusterId2 = network.querySelector('prevClusterId')?.textContent || '';
             const nextClusterId2 = network.querySelector('nextClusterId')?.textContent || '';
             const skip2 = network.querySelector('skip')?.textContent || '';
             const condition2 = network.querySelector('condition')?.textContent || '';
 
-            const getClusterName = (doc, clusterId) => {
+            const getClusterNameMissingRef = (doc, clusterId) => {
                 if (!clusterId) return '';
                 const clusterIndex = parseInt(clusterId);
                 if (isNaN(clusterIndex)) return '';
@@ -329,8 +372,8 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
                 return '';
             };
 
-            const prevClusterName2 = getClusterName(doc2, prevClusterId2);
-            const nextClusterName2 = getClusterName(doc2, nextClusterId2);
+            const prevClusterName2 = getClusterNameMissingRef(doc2, prevClusterId2);
+            const nextClusterName2 = getClusterNameMissingRef(doc2, nextClusterId2);
 
             return {
                 index: index,
@@ -344,7 +387,7 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
                 condition: condition2,
                 conditionFormatted: formatCondition(condition2),
                 valueLinksCount: network.querySelectorAll('valueLinks valueLink').length,
-                differences: [`ネットワークindex ${index}: 基準XMLに存在しない`],
+                differences: ['基準XMLに同一遷移（シート・クラスター）のネットワークがありません'],
                 hasDifferences: true,
                 ref_prevClusterId: '存在しない',
                 ref_prevClusterName: '',
@@ -357,7 +400,6 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
                 ref_valueLinksCount: 0
             };
         }
-        network1 = networks1[index];
     }
 
     const network2 = network;
@@ -409,14 +451,6 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
 
     const differences = [];
 
-    if (prevClusterId1 !== prevClusterId2) {
-        differences.push(`先行クラスターID: ${prevClusterId1 || '未設定'} → ${prevClusterId2 || '未設定'}`);
-    }
-
-    if (nextClusterId1 !== nextClusterId2) {
-        differences.push(`後続クラスターID: ${nextClusterId1 || '未設定'} → ${nextClusterId2 || '未設定'}`);
-    }
-
     if (skip1 !== skip2) {
         differences.push(`後続クラスターへの自動表示追加: ${formatSkip(skip1)} → ${formatSkip(skip2)}`);
     }
@@ -425,28 +459,7 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
         differences.push(`入力制限: ${formatCondition(condition1)} → ${formatCondition(condition2)}`);
     }
 
-    if (valueLinks1.length !== valueLinks2.length) {
-        differences.push(`バリューリンク数: ${valueLinks1.length} → ${valueLinks2.length}`);
-    }
-
-    if (valueLinks1.length === valueLinks2.length && valueLinks1.length > 0) {
-        for (let i = 0; i < valueLinks1.length; i++) {
-            const valueLink1 = valueLinks1[i];
-            const valueLink2 = valueLinks2[i];
-            if (valueLink2) {
-                const parentValue1 = valueLink1.querySelector('parentValue')?.textContent || '';
-                const parentValue2 = valueLink2.querySelector('parentValue')?.textContent || '';
-                const selectValues1 = valueLink1.querySelector('selectValues')?.textContent || '';
-                const selectValues2 = valueLink2.querySelector('selectValues')?.textContent || '';
-                const childValue1 = valueLink1.querySelector('childValue')?.textContent || '';
-                const childValue2 = valueLink2.querySelector('childValue')?.textContent || '';
-
-                if (parentValue1 !== parentValue2 || selectValues1 !== selectValues2 || childValue1 !== childValue2) {
-                    differences.push(`バリューリンク${i + 1}: 内容が異なります`);
-                }
-            }
-        }
-    }
+    appendValueLinkDifferenceMessages(differences, valueLinks1, valueLinks2);
 
     if (nextAutoInputStart1 !== nextAutoInputStart2) {
         differences.push(`後続クラスターの自動入力開始位置: ${formatNextAutoInputStart(nextAutoInputStart1)} → ${formatNextAutoInputStart(nextAutoInputStart2)}`);
@@ -532,15 +545,13 @@ export function getNetworkPositionDifference(network, index, context = {}) {
             }
         }
     } else {
-        if (index < networks1.length) {
-            network1 = networks1[index];
-        }
+        network1 = findNetworkInDocumentByEdge(networks1, network);
     }
 
     if (!network1) {
         return {
             hasDifferences: true,
-            differences: ['基準XMLにネットワークが存在しない'],
+            differences: ['基準XMLに同一遷移のネットワークが存在しない'],
             position: { x: 0, y: 0 },
             ref_position: { x: 0, y: 0 }
         };
@@ -621,15 +632,13 @@ export function getNetworkRestrictionDifference(network, index, context = {}) {
             }
         }
     } else {
-        if (index < networks1.length) {
-            network1 = networks1[index];
-        }
+        network1 = findNetworkInDocumentByEdge(networks1, network);
     }
 
     if (!network1) {
         return {
             hasDifferences: true,
-            differences: ['基準XMLにネットワークが存在しない'],
+            differences: ['基準XMLに同一遷移のネットワークが存在しない'],
             restrictions: {},
             ref_restrictions: {}
         };
@@ -650,7 +659,7 @@ export function getNetworkRestrictionDifference(network, index, context = {}) {
         maxCount: network.querySelector('maxCount')?.textContent || '',
         minCount: network.querySelector('minCount')?.textContent || '',
         timeout: network.querySelector('timeout')?.textContent || '',
-        retryCount: network.querySelector('timeout')?.textContent || ''
+        retryCount: network.querySelector('retryCount')?.textContent || ''
     };
 
     const differences = [];
