@@ -75,6 +75,7 @@
                 <button class="tab" data-tab="structure" style="display: none;">構造比較</button>
                 <button class="tab active" data-tab="pdf-layout" title="シート上の項目ごとの差分を確認">クラスター設定</button>
                 <button class="tab" data-tab="network-layout" title="つながり・遷移の差分を確認">ネットワーク設定</button>
+                <button class="tab" data-tab="def-info-layout" title="帳票定義名称・帳票名称自動作成を確認">帳票定義情報設定</button>
             </div>
             <div class="tab-content" id="resultsTab" style="display: none;">
                 <div class="comparison-results" id="resultsContent">
@@ -251,6 +252,20 @@
                             <div class="network-placeholder">
                                 XMLファイルを選択してネットワーク設定を表示してください
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="def-info-layoutTab">
+                <div class="def-info-layout-viewer" id="defInfoLayoutContent">
+                    <div class="def-info-layout-header" style="margin-bottom: 1rem;">
+                        <h3>📋 帳票定義情報設定</h3>
+                        <p>帳票定義全体の設定のうち、帳票定義名称（<code>defTopName</code>）と帳票名称自動作成（<code>nameParts</code>）を基準XMLと比較XMLで照合します。</p>
+                    </div>
+                    <div id="defInfoViewer">
+                        <div class="def-info-placeholder">
+                            XMLファイルを選択して帳票定義情報を表示してください
                         </div>
                     </div>
                 </div>

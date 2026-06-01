@@ -1,4 +1,5 @@
 import { formatNextAutoInputStart } from './network-diff.js';
+import { compareDefInfo } from './def-info-diff.js';
 import {
     getClusterTypeJapanese,
     extractParameter,
@@ -328,6 +329,9 @@ export function performXmlComparison(xml1, xml2, context = {}) {
 
         // 基本構造の比較
         compareBasicStructure(doc1, doc2, result);
+
+        // 帳票定義情報（帳票定義名称・帳票名称自動作成）
+        compareDefInfo(doc1, doc2, result);
         
         // クラスター種別の詳細比較
         if (isXmlCompareOptionOn('cluster_type_detail')) {

@@ -7,6 +7,7 @@ import {
 import { performXmlComparison as performXmlComparisonCore } from './modules/compare/xml-compare.js';
 import { getClusterTypeJapanese, extractParameter, compareClusterSettings as compareClusterSettingsCore, getChoiceDifference as getChoiceDifferenceCore, checkClusterDifference as checkClusterDifferenceCore } from './modules/compare/cluster-diff.js';
 import { compareNetworkSettings as compareNetworkSettingsCore, checkNetworkDifference as checkNetworkDifferenceCore, getNetworkDifferenceDetails as getNetworkDifferenceDetailsCore, getNetworkPositionDifference as getNetworkPositionDifferenceCore, getNetworkRestrictionDifference as getNetworkRestrictionDifferenceCore } from './modules/compare/network-diff.js';
+import { buildDefInfoData } from './modules/compare/def-info-diff.js';
 
 /**
  * ========================================
@@ -182,11 +183,14 @@ function setReferenceXmlUi(filename, text) {
         refInfo.style.display = 'block';
     }
     console.log('基準XML読み込み完了:', { filename, length: text.length });
+    lastDefInfoData = null;
     // 基準選択時点でプレビュー画面を表示
     showReferencePreview();
+    updateDefInfoLayout();
 }
 
 let layoutRefreshToken = 0;
+let lastDefInfoData = null;
 
 /** 結果エリア表示直後は pdfViewer のサイズが 0 のことがあるため、描画はレイアウト確定後に行う */
 function scheduleLayoutRefresh() {
@@ -197,15 +201,21 @@ function scheduleLayoutRefresh() {
             if (token !== layoutRefreshToken) return;
             const pdfTab = document.getElementById('pdf-layoutTab');
             const networkTab = document.getElementById('network-layoutTab');
+            const defInfoTab = document.getElementById('def-info-layoutTab');
             const clusterActive = pdfTab?.classList.contains('active');
             const networkActive = networkTab?.classList.contains('active');
+            const defInfoActive = defInfoTab?.classList.contains('active');
             // 表示中のタブだけ更新（他タブの PDF 描画をキャンセルしない）
-            if (clusterActive || (!clusterActive && !networkActive)) {
+            if (clusterActive || (!clusterActive && !networkActive && !defInfoActive)) {
                 await updatePdfLayout();
             }
             if (token !== layoutRefreshToken) return;
             if (networkActive) {
                 await updateNetworkLayout();
+            }
+            if (token !== layoutRefreshToken) return;
+            if (defInfoActive) {
+                updateDefInfoLayout();
             }
         });
     });
@@ -254,10 +264,13 @@ function showReferencePreview() {
     if (!resultsEl) return;
     resultsEl.style.display = 'block';
     const networkLayoutTab = document.getElementById('network-layoutTab');
+    const defInfoLayoutTab = document.getElementById('def-info-layoutTab');
     const isNetworkTabActive = networkLayoutTab && networkLayoutTab.classList.contains('active');
-    // ネットワーク設定タブ表示中に再読み込みされてもタブを切り替えず、両方のレイアウトだけ更新
-    if (isNetworkTabActive) {
+    const isDefInfoTabActive = defInfoLayoutTab && defInfoLayoutTab.classList.contains('active');
+    // ネットワーク / 帳票定義情報タブ表示中はタブを切り替えず内容だけ更新
+    if (isNetworkTabActive || isDefInfoTabActive) {
         scheduleLayoutRefresh();
+        if (isDefInfoTabActive) updateDefInfoLayout();
         return;
     }
     // クラスター設定タブをアクティブに
@@ -270,7 +283,7 @@ function showReferencePreview() {
     }
     const tabBtns = document.querySelectorAll('.tabs .tab');
     tabBtns.forEach(b => b.classList.remove('active'));
-    const pdfTabBtn = document.querySelector('.tabs .tab[onclick*="pdf-layout"]');
+    const pdfTabBtn = document.querySelector('.tabs .tab[data-tab="pdf-layout"]');
     if (pdfTabBtn) pdfTabBtn.classList.add('active');
     // シート選択を表示（複数シート時）
     const sheetContainer = document.getElementById('sheetSelectionContainer');
@@ -300,6 +313,7 @@ function loadReferenceXmlFromSelect() {
     if (!select || !select.value) {
         xmlData1 = null;
         file1 = null;
+        lastDefInfoData = null;
         const refInfo = document.getElementById('referenceFileInfo');
         if (refInfo) refInfo.style.display = 'none';
         const info1 = document.getElementById('fileInfo1');
@@ -626,6 +640,9 @@ function displayResults(result) {
                 </div>
             `;
         }
+
+        lastDefInfoData = result.defInfo || null;
+        updateDefInfoLayout(result.defInfo || null);
 }
 
 function showTab(tabName) {
@@ -682,6 +699,10 @@ function showTab(tabName) {
             xmlData2Length: xmlData2 ? xmlData2.length : 0
         });
         scheduleLayoutRefresh();
+    }
+
+    if (tabName === 'def-info-layout') {
+        updateDefInfoLayout();
     }
 }
 
@@ -1940,6 +1961,117 @@ function updateNetworkLayout() {
     window.__isUpdatingNetworkLayout = false;
 }
 
+function resolveDefInfoData() {
+    if (lastDefInfoData && xmlData1 && xmlData2) {
+        return lastDefInfoData;
+    }
+    const parser = new DOMParser();
+    if (xmlData1 && xmlData2) {
+        const doc1 = parser.parseFromString(xmlData1, 'text/xml');
+        const doc2 = parser.parseFromString(xmlData2, 'text/xml');
+        return buildDefInfoData(doc1, doc2);
+    }
+    if (xmlData1) {
+        const doc1 = parser.parseFromString(xmlData1, 'text/xml');
+        return buildDefInfoData(doc1);
+    }
+    return null;
+}
+
+function renderNamePartsDetailBlock(title, parts) {
+    if (!parts || parts.length === 0) {
+        return `<div class="def-info-parts-block"><strong>${escapeHtml(title)}</strong><p class="def-info-parts-empty">未設定</p></div>`;
+    }
+    const items = parts
+        .map((p, i) => `<li><span class="def-info-part-index">${i + 1}</span> ${escapeHtml(p.label)}</li>`)
+        .join('');
+    return `<div class="def-info-parts-block"><strong>${escapeHtml(title)}</strong><ol class="def-info-parts-list">${items}</ol></div>`;
+}
+
+function updateDefInfoLayout(defInfoOverride = null) {
+    const viewer = document.getElementById('defInfoViewer');
+    if (!viewer) return;
+
+    const data = defInfoOverride ?? resolveDefInfoData();
+    if (!data) {
+        viewer.innerHTML = `
+            <div class="def-info-placeholder">
+                <p>基準XMLを選択するか、比較XMLを選んで「比較を開始」を実行してください。</p>
+            </div>`;
+        return;
+    }
+
+    const compareMode = data.compareMode;
+    const statusBadge = (match) =>
+        match
+            ? '<span class="def-info-status def-info-match">一致</span>'
+            : '<span class="def-info-status def-info-diff">差分あり</span>';
+
+    const rowClass = (match) => (match ? 'def-info-row-match' : 'def-info-row-diff');
+
+    let tableHtml;
+    if (compareMode) {
+        tableHtml = `
+            <table class="def-info-table">
+                <thead>
+                    <tr>
+                        <th>項目</th>
+                        <th>基準XML</th>
+                        <th>比較XML</th>
+                        <th>結果</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="${rowClass(data.defTopName.match)}">
+                        <td>帳票定義名称</td>
+                        <td>${escapeHtml(data.defTopName.ref)}</td>
+                        <td>${escapeHtml(data.defTopName.up)}</td>
+                        <td>${statusBadge(data.defTopName.match)}</td>
+                    </tr>
+                    <tr class="${rowClass(data.nameParts.match)}">
+                        <td>帳票名称自動作成</td>
+                        <td>${escapeHtml(data.nameParts.refSummary)}</td>
+                        <td>${escapeHtml(data.nameParts.upSummary)}</td>
+                        <td>${statusBadge(data.nameParts.match)}</td>
+                    </tr>
+                </tbody>
+            </table>`;
+    } else {
+        tableHtml = `
+            <table class="def-info-table def-info-table-preview">
+                <thead>
+                    <tr><th>項目</th><th>基準XMLの値</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>帳票定義名称</td>
+                        <td>${escapeHtml(data.defTopName.ref)}</td>
+                    </tr>
+                    <tr>
+                        <td>帳票名称自動作成</td>
+                        <td>${escapeHtml(data.nameParts.refSummary)}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="def-info-preview-note">比較XMLを選択して比較を実行すると、基準との差分が表示されます。</p>`;
+    }
+
+    const partsDetailHtml = compareMode
+        ? `<div class="def-info-parts-detail">
+                <h4>帳票名称自動作成の構成詳細</h4>
+                <div class="def-info-parts-columns">
+                    ${renderNamePartsDetailBlock('基準XML', data.nameParts.refParts)}
+                    ${renderNamePartsDetailBlock('比較XML', data.nameParts.upParts)}
+                </div>
+           </div>`
+        : `<div class="def-info-parts-detail">
+                <h4>帳票名称自動作成の構成詳細（基準XML）</h4>
+                ${renderNamePartsDetailBlock('基準XML', data.nameParts.refParts)}
+           </div>`;
+
+    viewer.innerHTML = tableHtml + partsDetailHtml;
+}
+
 function generateNetworkLayout(xmlData) {
     const viewer = document.getElementById('networkViewer');
     if (!viewer) {
@@ -2615,6 +2747,8 @@ function changeSheet(index) {
         } else if (activeTab.id === 'network-layoutTab') {
             console.log('ネットワークレイアウトを更新します');
             updateNetworkLayout();
+        } else if (activeTab.id === 'def-info-layoutTab') {
+            updateDefInfoLayout();
         }
     }
 }
