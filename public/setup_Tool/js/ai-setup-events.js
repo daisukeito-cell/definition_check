@@ -16,20 +16,31 @@ function setupEventDelegation() {
     
     // ステップカードヘッダーのクリックイベント
     document.addEventListener('click', function(event) {
-        if (event.target.closest('.step-card-header')) {
-            const stepCard = event.target.closest('.step-card');
-            const stepId = parseInt(stepCard.querySelector('.step-card-header').getAttribute('data-step'));
-            if (stepId) {
-                toggleStep(stepId);
-            }
+        if (isProductGuideOpen() || isProductGuideSuppressingOpen()) {
+            return;
         }
+
+        const productCard = event.target.closest('.setup-product-card--clickable[data-product]');
+        if (productCard) {
+            event.preventDefault();
+            event.stopPropagation();
+            showProductGuide(productCard.dataset.product);
+            return;
+        }
+
     });
 
     // チェックボックスの変更イベント
     document.addEventListener('change', function(event) {
         if (event.target.classList.contains('step-card-checklist-checkbox')) {
-            const itemId = event.target.id.replace('checkbox-', '');
+            let itemId = event.target.id;
+            if (itemId.startsWith('product-guide-checkbox-')) {
+                itemId = itemId.slice('product-guide-checkbox-'.length);
+            } else {
+                itemId = itemId.replace('checkbox-', '');
+            }
             event.stopPropagation();
+            event.stopImmediatePropagation();
             toggleChecklistItem(itemId);
         }
     });
@@ -42,7 +53,10 @@ function setupEventDelegation() {
         '.step-card-checklist-item',
         '.step-card-checklist-items',
         '.step-card-checklist',
-        '.step-card-content'
+        '.step-card-content',
+        '.product-guide-modal',
+        '.product-guide-body',
+        '.setup-product-card--clickable'
     ];
     
     document.addEventListener('click', function(event) {
@@ -127,20 +141,9 @@ function toggleProgressIndicator() {
 
 window.onclick = function(event) {
     const pdfModal = document.getElementById('pdfModal');
-    const indicator = document.getElementById('progressIndicator');
-    const toggle = document.getElementById('progressIndicatorToggle');
-    
+
     if (event.target === pdfModal) {
         pdfModal.style.display = 'none';
-    }
-    
-    if (indicator && !indicator.classList.contains('hidden') && 
-        !indicator.contains(event.target) && 
-        event.target !== toggle) {
-        indicator.classList.add('hidden');
-        if (toggle) {
-            toggle.classList.remove('hidden');
-        }
     }
 }
 

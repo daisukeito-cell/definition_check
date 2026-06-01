@@ -5,7 +5,8 @@
 
 function generateAllSteps() {
     const container = document.getElementById('allStepsContainer');
-    
+    if (!container) return;
+
     // 現在開いているステップを記録
     const activeStepCard = container.querySelector('.step-card.active');
     const activeStepId = activeStepCard ? parseInt(activeStepCard.querySelector('.step-card-header').getAttribute('data-step')) : null;
@@ -243,11 +244,6 @@ function toggleChecklistItem(itemId) {
         event.stopImmediatePropagation();
     }
     
-    // 現在開いているステップを記録
-    const activeStepCard = document.querySelector('.step-card.active');
-    const activeStepId = activeStepCard ? parseInt(activeStepCard.querySelector('.step-card-header').getAttribute('data-step')) : null;
-    console.log('Currently active step:', activeStepId);
-    
     // Windows版とiOS版の排他制御
     if (itemId === 'installer-prep-2' || itemId === 'installer-prep-2-ios') {
         const otherId = itemId === 'installer-prep-2' ? 'installer-prep-2-ios' : 'installer-prep-2';
@@ -275,25 +271,242 @@ function toggleChecklistItem(itemId) {
 
     // HTMLの再生成を遅延させてイベントの競合を防ぐ
     setTimeout(() => {
-    generateAllSteps();
-    updateOverallProgress();
-    saveProgress();
-    checkAllCompleted();
-        
-        // 元々開いていたステップを再度開く
-        if (activeStepId) {
-            setTimeout(() => {
-                const stepCard = document.querySelector(`[data-step="${activeStepId}"]`).closest('.step-card');
-                if (stepCard) {
-                    stepCard.classList.add('active');
-                    console.log('Reopened step:', activeStepId);
-                }
-            }, 50);
-        }
+        updateOverallProgress();
+        saveProgress();
+        checkAllCompleted();
+        refreshProductGuideModal();
     }, 0);
 }
 
+function getProductGuideConfig(productKey) {
+    return PRODUCT_GUIDE_CONFIG[productKey] ?? null;
+}
 
+function getStepForProduct(productKey) {
+    const config = getProductGuideConfig(productKey);
+    if (!config) return null;
+    return guideSteps.find((step) => step.id === config.stepId) ?? null;
+}
+
+function buildSetupGuideSectionHtml(guide) {
+    const platform = guide.platform;
+    const stepsArray = guide.steps;
+    const imagePath = platform === 'iOS版' ? 'assets/pdfs/iOS_setup.pdf' : 'assets/pdfs/Win_setup.pdf';
+    const settingsImage = platform === 'iOS版' ? 'assets/images/ios_QR.png' : 'assets/images/Win_URL.png';
+
+    const qrSection = `
+        <div class="setup-guide-qr-section">
+            <h4>接続先設定画面</h4>
+            <div class="setup-guide-qr-layout ${platform === 'Windows版' ? 'windows-only' : ''}">
+                <div class="setup-guide-settings-panel">
+                    <img src="${settingsImage}" alt="${platform}設定画面" class="setup-guide-settings-image" onclick="showImageModal('${settingsImage}', '${platform}設定画面', event)">
+                </div>
+                ${platform === 'iOS版' ? `
+                    <div class="setup-guide-qr-panel">
+                        <img src="assets/images/ios_QR.png" alt="接続先URL QRコード" class="setup-guide-main-qr-image">
+                    </div>
+                ` : ''}
+            </div>
+            ${platform === 'iOS版' ? `
+                <div class="setup-guide-ios-note">
+                    <span class="setup-guide-note-icon">■</span>
+                    社内で配布された接続先QRコードを読み取ると、設定を自動入力できます（QRコードがない場合は手入力してください）
+                </div>
+            ` : ''}
+        </div>
+    `;
+
+    return `
+        <div class="product-guide-setup-section">
+            <div class="setup-guide-platform">${platform}</div>
+            ${qrSection}
+            <div class="setup-guide-steps-section">
+                <h4>設定手順</h4>
+                <ol class="setup-guide-steps">
+                    ${stepsArray.map((stepText) => `<li>${stepText}</li>`).join('')}
+                </ol>
+            </div>
+            <div class="setup-guide-image-section">
+                <h4>マニュアル</h4>
+                <div class="setup-guide-image-container" onclick="openPdfInNewWindow('${imagePath}')">
+                    <iframe src="${imagePath}" class="setup-guide-pdf-viewer" title="${guide.title}"></iframe>
+                    <div class="setup-guide-image-overlay">
+                        <div class="setup-guide-image-overlay-text">📄 PDFを別ウィンドウで開く</div>
+                    </div>
+                </div>
+                <div class="setup-guide-image-note">
+                    <small>※ 画像をクリックするとPDFを別ウィンドウで開きます</small>
+                </div>
+            </div>
+            <div class="setup-guide-note">
+                <strong>注意:</strong> ${CONNECTION_SETTING_CREDENTIAL_NOTE}
+            </div>
+        </div>
+    `;
+}
+
+function renderProductGuideChecklistItems(step, platformFilter) {
+    const checkableItems = step.checklist.filter((item) => !item.isDownloadSection);
+    return checkableItems.map((item) => {
+        const isCompleted = completedChecklistItems.has(item.id);
+        const isDisabled = typeof isItemDisabled === 'function' ? isItemDisabled(item.id) : false;
+        const setupGuideSections = item.setupGuides
+            ? item.setupGuides
+                .filter((guide) => !platformFilter || guide.platform === platformFilter)
+                .map((guide) => buildSetupGuideSectionHtml(guide))
+                .join('')
+            : '';
+
+        return `
+            <div class="step-card-checklist-item ${isCompleted ? 'completed' : ''} ${isDisabled ? 'disabled' : ''}">
+                <div class="step-card-checklist-item-main">
+                    <input type="checkbox"
+                           class="step-card-checklist-checkbox"
+                           id="product-guide-checkbox-${item.id}"
+                           ${isCompleted ? 'checked' : ''}
+                           ${isDisabled ? 'disabled' : ''}>
+                    <label for="product-guide-checkbox-${item.id}" class="step-card-checklist-label">
+                        <div class="step-card-checklist-item-title">${item.title}</div>
+                        <div class="step-card-checklist-item-description">${item.description}</div>
+                    </label>
+                </div>
+                <div class="step-card-checklist-item-actions">
+                    ${item.pdfFile ? `
+                        <button type="button" class="pdf-button" onclick="showPdfWithStopPropagation('${item.pdfFile}', '${item.pdfTitle}', event);">
+                            📄 操作手順PDFを表示
+                        </button>
+                    ` : ''}
+                </div>
+                ${setupGuideSections}
+            </div>
+        `;
+    }).join('');
+}
+
+function getProductGuideProgress(step) {
+    const checkableItems = step.checklist.filter((item) => !item.isDownloadSection);
+    const completedCount = checkableItems.filter((item) => completedChecklistItems.has(item.id)).length;
+    return { completedCount, totalCount: checkableItems.length };
+}
+
+function showProductGuide(productKey) {
+    if (isProductGuideSuppressingOpen()) return;
+
+    const config = getProductGuideConfig(productKey);
+    const step = getStepForProduct(productKey);
+    if (!config || !step) return;
+
+    closeProductGuide();
+
+    const platformFilter = config.platform || null;
+    const platformGuide = platformFilter
+        ? step.checklist.flatMap((item) => item.setupGuides || []).find((g) => g.platform === platformFilter)
+        : null;
+    const modalTitle = platformGuide?.title ?? step.title;
+    const { completedCount, totalCount } = getProductGuideProgress(step);
+    const modal = document.createElement('div');
+    modal.className = `setup-guide-modal ${PRODUCT_GUIDE_MODAL_CLASS}${platformFilter ? ' product-guide-modal--platform' : ''}`;
+    modal.dataset.guideProduct = productKey;
+    modal.dataset.guidePlatform = platformFilter || '';
+    modal.innerHTML = `
+        <div class="setup-guide-modal-content product-guide-modal-content${platformFilter ? ' product-guide-modal-content--wide' : ''}">
+            <div class="setup-guide-header product-guide-header">
+                <div class="product-guide-header-main">
+                    <span class="product-guide-step-num">${step.id}</span>
+                    <h3>${modalTitle}</h3>
+                </div>
+                <button type="button" class="setup-guide-close" onclick="closeProductGuide(event)" aria-label="閉じる">&times;</button>
+            </div>
+            <div class="setup-guide-body product-guide-body">
+                <p class="product-guide-description">${step.description}</p>
+                ${step.aiGuidance ? `
+                    <div class="step-card-ai-guidance">
+                        <h5>AIガイダンス</h5>
+                        <p>${step.aiGuidance}</p>
+                    </div>
+                ` : ''}
+                <div class="step-card-checklist product-guide-checklist">
+                    <div class="step-card-checklist-header">
+                        <h4 class="step-card-checklist-title">チェック項目</h4>
+                        <div class="step-card-checklist-progress product-guide-progress">${completedCount} / ${totalCount} 完了</div>
+                    </div>
+                    <div class="step-card-checklist-items product-guide-checklist-items">
+                        ${renderProductGuideChecklistItems(step, platformFilter)}
+                    </div>
+                </div>
+                <div class="setup-guide-footer">
+                    <button type="button" class="setup-guide-close-button" onclick="closeProductGuide(event)">閉じる</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (event.target === modal) {
+            closeProductGuide(event);
+        }
+    });
+
+    const modalContent = modal.querySelector('.setup-guide-modal-content');
+    if (modalContent) {
+        modalContent.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+    }
+
+    document.body.appendChild(modal);
+    document.addEventListener('keydown', handleProductGuideEscape);
+
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+}
+
+function handleProductGuideEscape(event) {
+    if (event.key === 'Escape') {
+        closeProductGuide();
+    }
+}
+
+function closeProductGuide(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const modal = document.querySelector(`.${PRODUCT_GUIDE_MODAL_CLASS}`);
+    if (!modal) return;
+
+    suppressProductGuideOpen();
+
+    modal.classList.remove('show');
+    modal.style.pointerEvents = 'none';
+    document.removeEventListener('keydown', handleProductGuideEscape);
+    setTimeout(() => {
+        modal.remove();
+    }, 300);
+}
+
+function refreshProductGuideModal() {
+    const modal = document.querySelector(`.${PRODUCT_GUIDE_MODAL_CLASS}`);
+    if (!modal) return;
+
+    const step = getStepForProduct(modal.dataset.guideProduct);
+    if (!step) return;
+
+    const platformFilter = modal.dataset.guidePlatform || null;
+    const { completedCount, totalCount } = getProductGuideProgress(step);
+    const progressEl = modal.querySelector('.product-guide-progress');
+    if (progressEl) {
+        progressEl.textContent = `${completedCount} / ${totalCount} 完了`;
+    }
+
+    const itemsContainer = modal.querySelector('.product-guide-checklist-items');
+    if (itemsContainer) {
+        itemsContainer.innerHTML = renderProductGuideChecklistItems(step, platformFilter || null);
+    }
+}
 
 function showPdfWithStopPropagation(pdfFile, pdfTitle, event) {
     event.stopPropagation();
@@ -310,9 +523,6 @@ function showSetupGuide(platform, title, steps, event) {
     
     // 画像パスを取得
     const imagePath = platform === 'iOS版' ? 'assets/pdfs/iOS_setup.pdf' : 'assets/pdfs/Win_setup.pdf';
-    
-    // 接続先URL
-    const connectionUrl = 'https://sales.conmas-i-reporter.com/ConMasWebSEMINAROLINE/Rests/ConMasIReporter.aspx';
     
     // 接続先設定画面セクション
     const qrSection = `
@@ -331,7 +541,7 @@ function showSetupGuide(platform, title, steps, event) {
             ${platform === 'iOS版' ? `
                 <div class="setup-guide-ios-note">
                     <span class="setup-guide-note-icon">■</span>
-                    iOS版アプリでこのQRコードを読み取って設定を自動入力できます
+                    社内で配布された接続先QRコードを読み取ると、設定を自動入力できます（QRコードがない場合は手入力してください）
                 </div>
             ` : ''}
         </div>
@@ -374,7 +584,7 @@ function showSetupGuide(platform, title, steps, event) {
                 </div>
                 
                 <div class="setup-guide-note">
-                    <strong>注意:</strong> ユーザーIDとパスワードは講習会事務局から提供されます。
+                    <strong>注意:</strong> ${CONNECTION_SETTING_CREDENTIAL_NOTE}
                 </div>
                 
                 <div class="setup-guide-footer">
@@ -842,7 +1052,7 @@ function showCompletionMessage() {
             <div class="completion-buttons">
                 <button class="action-btn danger" onclick="resetProgress(); closeCompletionModal();">進捗をリセット</button>
                 <button class="action-btn" onclick="closeCompletionModal()">閉じる</button>
-                <a href="/" class="action-btn info">帳票定義チェックを開始</a>
+                <a href="/" class="action-btn info">演習ルームへ</a>
             </div>
         </div>
     `;
@@ -870,9 +1080,10 @@ function resetProgress() {
     if (confirm('進捗をリセットしますか？\n\nすべてのチェック項目が未完了状態に戻ります。')) {
         completedChecklistItems.clear();
         localStorage.removeItem('iReporterGuideProgress');
-        generateAllSteps();
         updateOverallProgress();
-        
+        refreshProductGuideModal();
+        closeProductGuide();
+
         showResetMessage();
     }
 }

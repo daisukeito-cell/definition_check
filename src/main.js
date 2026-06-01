@@ -1,7 +1,9 @@
 import pdfjsLib from './modules/pdf-worker.js';
 import { initSetupCheckBanner, goToSetupGuide, closeSetupCheckBanner } from './modules/setup-banner.js';
-import { initOnboardingWelcome } from './modules/onboarding-welcome.js';
-import { playVideo, closeVideoModal, handleVideoModalClick, selectVideo, downloadFile, setReferenceFileHandler } from './modules/video.js';
+import {
+    downloadFile,
+    setReferenceFileHandler,
+} from './modules/video.js';
 import { performXmlComparison as performXmlComparisonCore } from './modules/compare/xml-compare.js';
 import { getClusterTypeJapanese, extractParameter, compareClusterSettings as compareClusterSettingsCore, getChoiceDifference as getChoiceDifferenceCore, checkClusterDifference as checkClusterDifferenceCore } from './modules/compare/cluster-diff.js';
 import { compareNetworkSettings as compareNetworkSettingsCore, checkNetworkDifference as checkNetworkDifferenceCore, getNetworkDifferenceDetails as getNetworkDifferenceDetailsCore, getNetworkPositionDifference as getNetworkPositionDifferenceCore, getNetworkRestrictionDifference as getNetworkRestrictionDifferenceCore } from './modules/compare/network-diff.js';
@@ -184,6 +186,68 @@ function setReferenceXmlUi(filename, text) {
     showReferencePreview();
 }
 
+let layoutRefreshToken = 0;
+
+/** 結果エリア表示直後は pdfViewer のサイズが 0 のことがあるため、描画はレイアウト確定後に行う */
+function scheduleLayoutRefresh() {
+    layoutRefreshToken += 1;
+    const token = layoutRefreshToken;
+    requestAnimationFrame(() => {
+        requestAnimationFrame(async () => {
+            if (token !== layoutRefreshToken) return;
+            const pdfTab = document.getElementById('pdf-layoutTab');
+            const networkTab = document.getElementById('network-layoutTab');
+            const clusterActive = pdfTab?.classList.contains('active');
+            const networkActive = networkTab?.classList.contains('active');
+            // 表示中のタブだけ更新（他タブの PDF 描画をキャンセルしない）
+            if (clusterActive || (!clusterActive && !networkActive)) {
+                await updatePdfLayout();
+            }
+            if (token !== layoutRefreshToken) return;
+            if (networkActive) {
+                await updateNetworkLayout();
+            }
+        });
+    });
+}
+
+const pdfRenderControllers = new Map();
+
+const CLUSTER_PDF_CANVAS_IDS = ['pdfCanvasSingle', 'pdfCanvas1', 'pdfCanvas2'];
+const NETWORK_PDF_CANVAS_IDS = ['networkPdfCanvas', 'networkCanvas1', 'networkCanvas2'];
+
+function cancelPdfRenders(canvasIds) {
+    canvasIds.forEach((id) => {
+        const controller = pdfRenderControllers.get(id);
+        if (controller) controller.abort();
+        pdfRenderControllers.delete(id);
+    });
+}
+
+function cancelClusterPdfRenders() {
+    cancelPdfRenders(CLUSTER_PDF_CANVAS_IDS);
+}
+
+function cancelNetworkPdfRenders() {
+    cancelPdfRenders(NETWORK_PDF_CANVAS_IDS);
+}
+
+function getPdfViewerSize(viewerEl, fallbackWidth = 800, fallbackHeight = 560) {
+    if (!viewerEl) {
+        return { width: fallbackWidth, height: fallbackHeight };
+    }
+    const rect = viewerEl.getBoundingClientRect();
+    return {
+        width: rect.width > 0 ? rect.width : fallbackWidth,
+        height: rect.height > 0 ? rect.height : fallbackHeight,
+    };
+}
+
+function normalizeLayoutScale(scale, maxWidth, maxHeight) {
+    if (scale > 0 && Number.isFinite(scale)) return scale;
+    return Math.min(0.7, 500 / maxWidth, 600 / maxHeight) || 0.5;
+}
+
 // 基準XML選択時のプレビュー画面表示（クラスター設定タブを表示）
 function showReferencePreview() {
     const resultsEl = document.getElementById('results');
@@ -193,8 +257,7 @@ function showReferencePreview() {
     const isNetworkTabActive = networkLayoutTab && networkLayoutTab.classList.contains('active');
     // ネットワーク設定タブ表示中に再読み込みされてもタブを切り替えず、両方のレイアウトだけ更新
     if (isNetworkTabActive) {
-        updatePdfLayout();
-        updateNetworkLayout();
+        scheduleLayoutRefresh();
         return;
     }
     // クラスター設定タブをアクティブに
@@ -212,8 +275,7 @@ function showReferencePreview() {
     // シート選択を表示（複数シート時）
     const sheetContainer = document.getElementById('sheetSelectionContainer');
     if (sheetContainer) sheetContainer.style.display = 'block';
-    updatePdfLayout();
-    updateNetworkLayout(); // ネットワークタブ用も事前に生成しておく
+    scheduleLayoutRefresh();
 }
 
 function validateXmlStructure(doc, label) {
@@ -311,6 +373,7 @@ async function loadReferenceXmlList() {
     // デフォルトで1つ目を選択
     select.value = referenceOptions[0].file;
     loadReferenceXmlFromSelect();
+    applyCheckPageStepFromQuery();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -445,17 +508,13 @@ function compareXmlFile() {
                 displayResults(comparisonResult);
             }
             document.getElementById('pdfFileSelect').value = 'compare';
-            autoDisplayPdfBackground();
             document.getElementById('loading').style.display = 'none';
             document.getElementById('results').style.display = 'block';
-            setTimeout(() => {
-                const pdfLayoutTab = document.getElementById('pdf-layoutTab');
-                const networkLayoutTab = document.getElementById('network-layoutTab');
-                if (pdfLayoutTab) pdfLayoutTab.classList.add('active');
-                if (networkLayoutTab) networkLayoutTab.classList.remove('active');
-                updatePdfLayout();
-                updateNetworkLayout();
-            }, 100);
+            const pdfLayoutTab = document.getElementById('pdf-layoutTab');
+            const networkLayoutTab = document.getElementById('network-layoutTab');
+            if (pdfLayoutTab) pdfLayoutTab.classList.add('active');
+            if (networkLayoutTab) networkLayoutTab.classList.remove('active');
+            scheduleLayoutRefresh();
         } catch (error) {
             console.error('比較エラー:', error);
             let errorMessage = 'ファイルの比較中にエラーが発生しました。\n\n' + `エラー詳細: ${error.message}\n`;
@@ -610,9 +669,7 @@ function showTab(tabName) {
             xmlData1Length: xmlData1 ? xmlData1.length : 0,
             xmlData2Length: xmlData2 ? xmlData2.length : 0
         });
-        setTimeout(() => {
-            updatePdfLayout();
-        }, 100);
+        scheduleLayoutRefresh();
     }
     
     // ネットワーク設定タブが選択された場合、既に内容があってもタブ表示後に1回だけ更新（二重実行しない）
@@ -624,7 +681,7 @@ function showTab(tabName) {
             xmlData1Length: xmlData1 ? xmlData1.length : 0,
             xmlData2Length: xmlData2 ? xmlData2.length : 0
         });
-        setTimeout(() => updateNetworkLayout(), 100);
+        scheduleLayoutRefresh();
     }
 }
 
@@ -641,65 +698,115 @@ function renderPdfAsImage(pdfBase64, canvasId, targetWidth, targetHeight, pageNu
         console.warn('PDF.jsライブラリが読み込まれていません。');
         return;
     }
-    
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) {
+
+    const host = document.getElementById(canvasId);
+    if (!host) {
         console.error(`Canvas要素が見つかりません: ${canvasId}`);
         return;
     }
-    
-    // ページ番号が指定されていない場合は、currentSheetIndex + 1を使用（1ベース）
-    // シートごとに異なるPDFが設定されている場合は、常に1ページ目を表示
+
+    const prev = pdfRenderControllers.get(canvasId);
+    if (prev) prev.abort();
+
+    const controller = {
+        aborted: false,
+        renderTask: null,
+        abort() {
+            this.aborted = true;
+            if (this.renderTask) {
+                try {
+                    this.renderTask.cancel();
+                } catch (_) {
+                    /* 既に完了している場合は無視 */
+                }
+            }
+        },
+    };
+    pdfRenderControllers.set(canvasId, controller);
+
     const targetPage = pageNumber !== null ? pageNumber : (currentSheetIndex + 1);
-    
-    // Base64データをUint8Arrayに変換
-    const pdfData = atob(pdfBase64);
-    const pdfBytes = new Uint8Array(pdfData.length);
-    for (let i = 0; i < pdfData.length; i++) {
-        pdfBytes[i] = pdfData.charCodeAt(i);
+    const layoutWidth = Math.max(targetWidth || 0, 1);
+    const layoutHeight = Math.max(targetHeight || 0, 1);
+
+    const mountImage = (dataUrl) => {
+        if (controller.aborted) return;
+        let el = document.getElementById(canvasId);
+        if (!el) return;
+
+        if (el.tagName === 'IMG') {
+            el.src = dataUrl;
+            el.className = 'pdf-background';
+            el.style.width = layoutWidth + 'px';
+            el.style.height = layoutHeight + 'px';
+            console.log(`PDF背景を画像化して表示完了 (${canvasId})`);
+            return;
+        }
+
+        const img = document.createElement('img');
+        img.id = canvasId;
+        img.className = 'pdf-background';
+        img.src = dataUrl;
+        img.alt = '帳票背景';
+        img.style.width = layoutWidth + 'px';
+        img.style.height = layoutHeight + 'px';
+        img.style.display = 'block';
+        img.draggable = false;
+        if (el.parentNode) {
+            el.parentNode.replaceChild(img, el);
+        }
+        console.log(`PDF背景を画像化して表示完了 (${canvasId})`);
+    };
+
+    let pdfBytes;
+    try {
+        const cleaned = pdfBase64.replace(/[\r\n\s\t]/g, '');
+        const pdfData = atob(cleaned);
+        pdfBytes = new Uint8Array(pdfData.length);
+        for (let i = 0; i < pdfData.length; i++) {
+            pdfBytes[i] = pdfData.charCodeAt(i);
+        }
+    } catch (error) {
+        console.error(`PDFデータのデコードに失敗しました (${canvasId}):`, error);
+        pdfRenderControllers.delete(canvasId);
+        return;
     }
-    
-    // PDFを読み込む
-    pdfjsLib.getDocument({ data: pdfBytes }).promise.then(function(pdf) {
-        console.log(`PDF読み込み完了 (${canvasId}):`, pdf.numPages, 'ページ');
-        
-        // 指定されたページ番号を取得（1ベース、範囲チェック）
+
+    pdfjsLib.getDocument({ data: pdfBytes }).promise.then((pdf) => {
+        if (controller.aborted) return null;
         const pageNum = Math.min(Math.max(1, targetPage), pdf.numPages);
-        console.log(`PDFページ取得 (${canvasId}): ページ${pageNum}を表示（シート${currentSheetIndex + 1}、総ページ数: ${pdf.numPages}）`);
-        
-        // 指定されたページを取得
         return pdf.getPage(pageNum);
-    }).then(function(page) {
-        console.log(`PDFページ取得完了 (${canvasId})`);
-        
-        // 元のビューポートを取得
+    }).then((page) => {
+        if (controller.aborted || !page) return null;
+
         const viewport = page.getViewport({ scale: 1.0 });
-        
-        // 目標サイズに合わせてスケールを計算
-        const scale = Math.min(targetWidth / viewport.width, targetHeight / viewport.height);
-        const scaledViewport = page.getViewport({ scale: scale });
-        
-        // Canvasのサイズを設定
-        canvas.width = scaledViewport.width;
-        canvas.height = scaledViewport.height;
-        
-        // Canvasのスタイルサイズも設定（表示サイズ）
-        canvas.style.width = targetWidth + 'px';
-        canvas.style.height = targetHeight + 'px';
-        
-        const context = canvas.getContext('2d');
-        
-        // PDFページをcanvasに描画
-        const renderContext = {
-            canvasContext: context,
-            viewport: scaledViewport
-        };
-        
-        return page.render(renderContext).promise.then(function() {
-            console.log(`PDFページの描画完了 (${canvasId})`);
+        const scale = Math.min(layoutWidth / viewport.width, layoutHeight / viewport.height);
+        const scaledViewport = page.getViewport({
+            scale: scale > 0 && Number.isFinite(scale) ? scale : 1,
         });
-    }).catch(function(error) {
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width = scaledViewport.width;
+        offscreen.height = scaledViewport.height;
+
+        const renderTask = page.render({
+            canvasContext: offscreen.getContext('2d'),
+            viewport: scaledViewport,
+        });
+        controller.renderTask = renderTask;
+        return renderTask.promise.then(() => offscreen);
+    }).then((offscreen) => {
+        if (controller.aborted || !offscreen) return;
+        mountImage(offscreen.toDataURL('image/png'));
+        if (pdfRenderControllers.get(canvasId) === controller) {
+            pdfRenderControllers.delete(canvasId);
+        }
+    }).catch((error) => {
+        if (controller.aborted) return;
+        if (error?.name === 'RenderingCancelledException') return;
         console.error(`PDFの描画に失敗しました (${canvasId}):`, error);
+        if (pdfRenderControllers.get(canvasId) === controller) {
+            pdfRenderControllers.delete(canvasId);
+        }
     });
 }
 
@@ -720,6 +827,21 @@ function setReferenceFile() {
 }
 
 setReferenceFileHandler(setReferenceFile);
+
+const CHECK_STEP_QUERY_MAP = {
+    step1: 'Definition_check.xml',
+    step2: 'Definition_Complet.xml',
+};
+
+function applyCheckPageStepFromQuery() {
+    const step = new URLSearchParams(window.location.search).get('step');
+    const file = step && CHECK_STEP_QUERY_MAP[step];
+    if (!file) return;
+    const refSelect = document.getElementById('referenceXmlSelect');
+    if (!refSelect) return;
+    refSelect.value = file;
+    loadReferenceXmlFromSelect();
+}
 
 function loadReferencePdfLayout() {
     // 基準ファイルのPDFレイアウトを設定
@@ -760,6 +882,7 @@ function loadReferencePdfLayout() {
 
 
 
+/** @deprecated 比較開始時は scheduleLayoutRefresh → updatePdfLayout を使用（PDFをPNG扱いすると反転表示になる） */
 function autoDisplayPdfBackground() {
     // 基準XMLのXMLデータからPDF背景情報を自動取得
     if (!xmlData1) return;
@@ -1248,9 +1371,9 @@ async function generatePdfLayout(xmlData, displayMode, scale, fileSelect) {
     const viewer = document.getElementById('pdfViewer');
     
     // プレビュー画面上でちょうど収まるスケールを計算
-    const viewerRect = viewer.getBoundingClientRect();
-    const viewerWidth = viewerRect.width - 40; // パディング分を引く
-    const viewerHeight = viewerRect.height - 40; // パディング分を引く
+    const viewerSize = getPdfViewerSize(viewer);
+    const viewerWidth = viewerSize.width - 40; // パディング分を引く
+    const viewerHeight = viewerSize.height - 40; // パディング分を引く
     
     // 基準XMLのPDF背景を取得
     let referenceBackgroundImage = null;
@@ -1356,7 +1479,7 @@ async function generatePdfLayout(xmlData, displayMode, scale, fileSelect) {
     // プレビュー画面上でちょうど収まるスケールを計算
     const scaleX = viewerWidth / width;
     const scaleY = viewerHeight / height;
-    const optimalScale = Math.min(scaleX, scaleY, 1.2); // 1.2（120%）を超えないようにする
+    const optimalScale = normalizeLayoutScale(Math.min(scaleX, scaleY, 1.2), width, height);
     
     console.log('スケール計算:', {
         originalSize: { width, height },
@@ -1538,139 +1661,18 @@ async function generatePdfLayout(xmlData, displayMode, scale, fileSelect) {
         backgroundElementFound: hasBackgroundElement ? '見つかりました' : '見つかりません'
     });
     
+    cancelClusterPdfRenders();
     viewer.innerHTML = finalHtml;
     
-    // 読み込んだ背景PDFを画像化（DOM反映後に実行＝キャンバスが確実に存在するタイミング）
     if (pendingPdfRenderSingle) {
         const { base64, scaledWidth, scaledHeight, pageNumber } = pendingPdfRenderSingle;
-        setTimeout(() => {
-            const canvas = document.getElementById('pdfCanvasSingle');
-            if (canvas) {
-                renderPdfAsImage(base64, 'pdfCanvasSingle', scaledWidth, scaledHeight, pageNumber);
-            } else {
-                console.warn('pdfCanvasSingle がDOMに見つかりません（背景PDF描画スキップ）');
-            }
-        }, 150);
-    }
-    
-    // HTML設定後に、実際のDOM要素を確認
-    setTimeout(() => {
-        const backgroundElement = viewer.querySelector('.pdf-background');
-        if (backgroundElement) {
-            console.log('単一ファイルPDF背景要素がDOMに存在します:', {
-                element: backgroundElement,
-                computedStyle: window.getComputedStyle(backgroundElement),
-                backgroundImage: backgroundElement.style.backgroundImage,
-                zIndex: backgroundElement.style.zIndex,
-                width: backgroundElement.style.width,
-                height: backgroundElement.style.height
-            });
-            
-            // PDFの実際の表示サイズを詳細に確認
-            const pdfElement = backgroundElement;
-            const pdfRect = pdfElement.getBoundingClientRect();
-            const pdfComputedStyle = window.getComputedStyle(pdfElement);
-            
-            console.log('PDF要素の詳細サイズ情報:', {
-                element: pdfElement,
-                tagName: pdfElement.tagName,
-                src: pdfElement.src,
-                getBoundingClientRect: {
-                    width: pdfRect.width,
-                    height: pdfRect.height,
-                    top: pdfRect.top,
-                    left: pdfRect.left,
-                    right: pdfRect.right,
-                    bottom: pdfRect.bottom
-                },
-                computedStyle: {
-                    width: pdfComputedStyle.width,
-                    height: pdfComputedStyle.height,
-                    position: pdfComputedStyle.position,
-                    top: pdfComputedStyle.top,
-                    left: pdfComputedStyle.left
-                },
-                inlineStyle: {
-                    width: pdfElement.style.width,
-                    height: pdfElement.style.height,
-                    position: pdfElement.style.position,
-                    top: pdfElement.style.top,
-                    left: pdfElement.style.left
-                }
-            });
-            
-            // PDFの実際の表示サイズに基づいて座標を再計算
-            const actualPdfWidth = pdfRect.width;
-            const actualPdfHeight = pdfRect.height;
-            const expectedPdfWidth = width * scale;
-            const expectedPdfHeight = height * scale;
-            
-            console.log('PDFサイズ比較:', {
-                expected: { width: expectedPdfWidth, height: expectedPdfHeight },
-                actual: { width: actualPdfWidth, height: actualPdfHeight },
-                difference: {
-                    width: actualPdfWidth - expectedPdfWidth,
-                    height: actualPdfHeight - expectedPdfHeight
-                },
-                scaleFactors: {
-                    width: actualPdfWidth / expectedPdfWidth,
-                    height: actualPdfHeight / expectedPdfHeight
-                }
-            });
-            
-            // サイズの違いが大きい場合は、クラスターの位置を調整
-            if (Math.abs(actualPdfWidth - expectedPdfWidth) > 1 || Math.abs(actualPdfHeight - expectedPdfHeight) > 1) {
-                console.log('PDFサイズの違いを検出したため、クラスターの位置を調整します');
-                
-                // クラスターの位置を実際のPDFサイズに合わせて調整
-                const clusterElements = viewer.querySelectorAll('.cluster-overlay');
-                clusterElements.forEach((clusterElement, index) => {
-                    const originalTop = parseFloat(clusterElement.style.top);
-                    const originalLeft = parseFloat(clusterElement.style.left);
-                    const originalWidth = parseFloat(clusterElement.style.width);
-                    const originalHeight = parseFloat(clusterElement.style.height);
-                    
-                    // スケール係数を計算
-                    const scaleX = actualPdfWidth / expectedPdfWidth;
-                    const scaleY = actualPdfHeight / expectedPdfHeight;
-                    
-                    // 新しい位置とサイズを計算
-                    const newTop = originalTop * scaleY;
-                    const newLeft = originalLeft * scaleX;
-                    const newWidth = originalWidth * scaleX;
-                    const newHeight = originalHeight * scaleY;
-                    
-                    // クラスターの位置とサイズを更新
-                    clusterElement.style.top = newTop + 'px';
-                    clusterElement.style.left = newLeft + 'px';
-                    clusterElement.style.width = newWidth + 'px';
-                    clusterElement.style.height = newHeight + 'px';
-                    
-                    console.log(`クラスター${index + 1}の位置調整:`, {
-                        original: { top: originalTop, left: originalLeft, width: originalWidth, height: originalHeight },
-                        adjusted: { top: newTop, left: newLeft, width: newWidth, height: newHeight },
-                        scaleFactors: { scaleX, scaleY }
-                    });
-                });
-            } else {
-                console.log('PDFサイズの違いは1px以下です。位置調整は不要です。');
-            }
+        const canvas = document.getElementById('pdfCanvasSingle');
+        if (canvas) {
+            renderPdfAsImage(base64, 'pdfCanvasSingle', scaledWidth, scaledHeight, pageNumber);
         } else {
-            console.warn('PDF背景要素がDOMに見つかりません');
+            console.warn('pdfCanvasSingle がDOMに見つかりません（背景PDF描画スキップ）');
         }
-        
-        // 親要素のスタイルも確認
-        const parentElement = viewer.querySelector('div[style*="position: relative"]');
-        if (parentElement) {
-            console.log('親要素のスタイル:', {
-                element: parentElement,
-                computedStyle: window.getComputedStyle(parentElement),
-                width: parentElement.style.width,
-                height: parentElement.style.height,
-                overflow: parentElement.style.overflow
-            });
-        }
-    }, 100);
+    }
 }
 
 // 背景画像表示テスト関数
@@ -1968,18 +1970,13 @@ function generateNetworkLayout(xmlData) {
     
     // プレビュー画面上でちょうど収まるスケールを計算
     const networkViewer = document.getElementById('networkViewer');
-    const viewerRect = networkViewer.getBoundingClientRect();
-    const rawWidth = Math.max(0, viewerRect.width - 40);
-    const rawHeight = Math.max(0, viewerRect.height - 40);
-    const viewerWidth = rawWidth > 0 ? rawWidth : 500;
-    const viewerHeight = rawHeight > 0 ? rawHeight : 600;
+    const viewerSize = getPdfViewerSize(networkViewer, 500, 600);
+    const viewerWidth = Math.max(viewerSize.width - 40, 1);
+    const viewerHeight = Math.max(viewerSize.height - 40, 1);
     
     const scaleX = viewerWidth / width;
     const scaleY = viewerHeight / height;
-    let optimalScale = Math.min(scaleX, scaleY, 1.2); // 1.2（120%）を超えないようにする
-    if (optimalScale <= 0 || !Number.isFinite(optimalScale)) {
-        optimalScale = Math.min(0.7, (viewerWidth || 500) / width, (viewerHeight || 600) / height) || 0.5;
-    }
+    const optimalScale = normalizeLayoutScale(Math.min(scaleX, scaleY, 1.2), width, height);
     
     console.log('単一ファイルネットワークレイアウトスケール計算:', {
         originalSize: { width, height },
@@ -2142,17 +2139,15 @@ function generateNetworkLayout(xmlData) {
     });
     
     layoutHtml += '</div>';
+    cancelNetworkPdfRenders();
     viewer.innerHTML = layoutHtml;
     
-    // 背景PDFを画像化して表示（DOM反映後に実行）
     if (pendingNetworkPdfRender) {
         const { base64, layoutWidth, layoutHeight, pageNumber } = pendingNetworkPdfRender;
-        setTimeout(() => {
-            const canvas = document.getElementById('networkPdfCanvas');
-            if (canvas) {
-                renderPdfAsImage(base64, 'networkPdfCanvas', layoutWidth, layoutHeight, pageNumber);
-            }
-        }, 150);
+        const canvas = document.getElementById('networkPdfCanvas');
+        if (canvas) {
+            renderPdfAsImage(base64, 'networkPdfCanvas', layoutWidth, layoutHeight, pageNumber);
+        }
     }
 }
 
@@ -3127,8 +3122,6 @@ function selectCluster(index) {
                 <span class="cluster-basic-value">${carbonCopyTarget2 != null ? `${index}→${carbonCopyTarget2 - 1}` : '設定なし'}</span>
                 ${carbonCopyTarget1 !== carbonCopyTarget2 ? '<span style="color: #dc3545; margin-left: 0.5rem;">⚠️ 基準XML: ' + (carbonCopyTarget1 != null ? `${index}→${carbonCopyTarget1 - 1}` : '設定なし') + '</span>' : ''}
             </div>
-            ${!cluster1 ? '<div style="color: #ff9500; margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border-radius: 4px;">⚠️ 基準XMLにこのクラスターは存在しません</div>' : ''}
-            ${!cluster2 ? '<div style="color: #ff9500; margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border-radius: 4px;">⚠️ 比較XMLにこのクラスターは存在しません</div>' : ''}
         </div>
     `;
     
@@ -3405,8 +3398,21 @@ function selectCluster(index) {
         });
         
         html += `</div>`;
+    } else if (!cluster1 && cluster2) {
+        html += `
+            <div class="cluster-presence-difference">
+                <h4>⚠️ 基準XMLに存在しないクラスター</h4>
+                <p>比較XMLにのみ存在します。基準XML側に対応するクラスターがありません。</p>
+            </div>
+        `;
+    } else if (cluster1 && !cluster2) {
+        html += `
+            <div class="cluster-presence-difference">
+                <h4>⚠️ 比較XMLに存在しないクラスター</h4>
+                <p>基準XMLにのみ存在します。比較XML側に対応するクラスターがありません。</p>
+            </div>
+        `;
     } else {
-        // 差分なしの場合
         html += `
             <div class="cluster-no-difference">
                 ✅ 差分なし: 基準XMLと設定が同じです。
@@ -3466,6 +3472,7 @@ function showClusterErrorModal(title, message) {
 // 比較レイアウト生成関数
 async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMode, scale) {
     const viewer = document.getElementById('pdfViewer');
+    const pendingComparePdfRenders = [];
     const parser = new DOMParser();
     
     // 基準XMLと比較XMLの両方を解析
@@ -3574,7 +3581,7 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
     
     // XMLから取得したPDFサイズを基準に、ビューアーサイズに合わせて最適化
     const pdfViewer = document.getElementById('pdfViewer');
-    const viewerRect = pdfViewer.getBoundingClientRect();
+    const viewerSize = getPdfViewerSize(pdfViewer);
     
     // 余白を最小限に設定（視認性を保ちつつ余白を削減）
     const outerPadding = 10; // 外側の余白
@@ -3583,8 +3590,8 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
     const titleHeight = 0; // タイトルは表示しないので0
     
     // 各パネルに使用可能なサイズを計算
-    const availableWidth = (viewerRect.width - outerPadding * 2 - gap) / 2;
-    const availableHeight = viewerRect.height - outerPadding * 2 - titleHeight;
+    const availableWidth = (viewerSize.width - outerPadding * 2 - gap) / 2;
+    const availableHeight = viewerSize.height - outerPadding * 2 - titleHeight;
     
     // 両方のPDFサイズを考慮してスケールを計算
     const maxWidth = Math.max(width1, width2);
@@ -3593,7 +3600,7 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
     // コンテナ内に収まるようにスケールを計算（余白を最小限に）
     const scaleX = (availableWidth - contentPadding * 2) / maxWidth;
     const scaleY = (availableHeight - contentPadding * 2) / maxHeight;
-    const optimalScale = Math.min(scaleX, scaleY, 1.0); // 最大100%まで（拡大しない）
+    const optimalScale = normalizeLayoutScale(Math.min(scaleX, scaleY, 1.0), maxWidth, maxHeight);
     
     // スケール適用後の実際のサイズを計算（XMLから取得したサイズを基準）
     const scaledWidth1 = width1 * optimalScale;
@@ -3759,9 +3766,13 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
                 // シートごとに異なるPDFが設定されているかどうかを判定（シートにbackgroundImageがある場合は専用PDFとみなす）
                 const useSheetSpecificPage = !sheetBackgroundImage1 && rootBackgroundImage1;
                 const pageNumber = useSheetSpecificPage ? (currentSheetIndex + 1) : 1;
-                setTimeout(() => {
-                    renderPdfAsImage(backgroundImageToUse1, 'pdfCanvas1', scaledWidth1, scaledHeight1, pageNumber);
-                }, 100);
+                pendingComparePdfRenders.push({
+                    base64: backgroundImageToUse1,
+                    canvasId: 'pdfCanvas1',
+                    width: scaledWidth1,
+                    height: scaledHeight1,
+                    pageNumber,
+                });
             } else {
                 layoutHtml += `
                     <div id="pdfBackground1" style="
@@ -3902,9 +3913,13 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
                 // シートごとに異なるPDFが設定されているかどうかを判定（シートにbackgroundImageがある場合は専用PDFとみなす）
                 const useSheetSpecificPage2 = !sheetBackgroundImage2 && rootBackgroundImage2;
                 const pageNumber2 = useSheetSpecificPage2 ? (currentSheetIndex + 1) : 1;
-                setTimeout(() => {
-                    renderPdfAsImage(backgroundImageToUse2, 'pdfCanvas2', scaledWidth2, scaledHeight2, pageNumber2);
-                }, 100);
+                pendingComparePdfRenders.push({
+                    base64: backgroundImageToUse2,
+                    canvasId: 'pdfCanvas2',
+                    width: scaledWidth2,
+                    height: scaledHeight2,
+                    pageNumber: pageNumber2,
+                });
         } else {
                 layoutHtml += `
                     <div id="pdfBackground2" style="
@@ -4033,7 +4048,14 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
         backgroundElementFound: hasBackgroundElement ? '見つかりました' : '見つかりません'
     });
     
+    cancelClusterPdfRenders();
     viewer.innerHTML = layoutHtml;
+
+    pendingComparePdfRenders.forEach(({ base64, canvasId, width, height, pageNumber }) => {
+        if (document.getElementById(canvasId)) {
+            renderPdfAsImage(base64, canvasId, width, height, pageNumber);
+        }
+    });
     
     // マウスホイールで拡大縮小（CtrlキーまたはCmdキーを押しながら）
     setTimeout(() => {
@@ -4066,6 +4088,7 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
         console.warn('networkViewer要素が見つかりません');
         return;
     }
+    const pendingNetworkPdfRenders = [];
     const parser = new DOMParser();
     
     // 両方のXMLを解析（比較用）
@@ -4308,37 +4331,10 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
     const networkViewerEl = document.getElementById('networkViewer');
     const networkTab = document.getElementById('network-layoutTab');
     const isNetworkTabActive = networkTab && networkTab.classList.contains('active');
-    
-    let viewerWidth = 800;
-    let viewerHeight = 600;
-    
-    if (isNetworkTabActive && networkViewerEl) {
-        const r = networkViewerEl.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) {
-            viewerWidth = r.width;
-            viewerHeight = r.height;
-        }
-    }
-    if ((viewerWidth <= 0 || viewerHeight <= 0) && pdfViewerEl) {
-        const r = pdfViewerEl.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) {
-            viewerWidth = r.width;
-            viewerHeight = r.height;
-        }
-    }
-    if ((viewerWidth <= 0 || viewerHeight <= 0) && networkViewerEl) {
-        const r = networkViewerEl.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) {
-            viewerWidth = r.width;
-            viewerHeight = r.height;
-        } else if (networkViewerEl.parentElement) {
-            const pr = networkViewerEl.parentElement.getBoundingClientRect();
-            if (pr.width > 0 && pr.height > 0) {
-                viewerWidth = pr.width;
-                viewerHeight = pr.height;
-            }
-        }
-    }
+    const primaryViewer = (isNetworkTabActive && networkViewerEl) ? networkViewerEl : (pdfViewerEl || networkViewerEl);
+    const viewerSize = getPdfViewerSize(primaryViewer);
+    const viewerWidth = viewerSize.width;
+    const viewerHeight = viewerSize.height;
     
     // XMLから取得したPDFサイズを基準に、ビューアーサイズに合わせて最適化
     // クラスター設定タブと同じ計算方法を使用
@@ -4358,10 +4354,7 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
     // コンテナ内に収まるようにスケールを計算（余白を最小限に）
     const scaleX = (availableWidth - contentPadding * 2) / maxWidth;
     const scaleY = (availableHeight - contentPadding * 2) / maxHeight;
-    let pdfScale = Math.min(scaleX, scaleY, 1.0); // 最大100%まで
-    if (pdfScale <= 0 || !Number.isFinite(pdfScale)) {
-        pdfScale = Math.min(0.7, 500 / maxWidth, 600 / maxHeight) || 0.5;
-    }
+    const pdfScale = normalizeLayoutScale(Math.min(scaleX, scaleY, 1.0), maxWidth, maxHeight);
     
     // スケール適用後の実際のサイズを計算（XMLから取得したサイズを基準）
     const scaledWidth1 = width1 * pdfScale;
@@ -4442,9 +4435,13 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
             // シートごとに異なるPDFが設定されている場合は1ページ目、同じPDFの場合はcurrentSheetIndex + 1ページ目を表示
             const useSheetSpecificPage1 = !sheetBackgroundImage1 && rootBackgroundImage1;
             const pageNumber1 = useSheetSpecificPage1 ? (currentSheetIndex + 1) : 1;
-            setTimeout(() => {
-                renderPdfAsImage(cleanedBg1, 'networkCanvas1', scaledWidth1, scaledHeight1, pageNumber1);
-            }, 100);
+            pendingNetworkPdfRenders.push({
+                base64: cleanedBg1,
+                canvasId: 'networkCanvas1',
+                width: scaledWidth1,
+                height: scaledHeight1,
+                pageNumber: pageNumber1,
+            });
         } else {
             layoutHtml += `
                 <div id="networkBackground1" style="
@@ -4637,9 +4634,13 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
             // シートごとに異なるPDFが設定されている場合は1ページ目、同じPDFの場合はcurrentSheetIndex + 1ページ目を表示
             const useSheetSpecificPage2 = !sheetBackgroundImage2 && rootBackgroundImage2;
             const pageNumber2 = useSheetSpecificPage2 ? (currentSheetIndex + 1) : 1;
-            setTimeout(() => {
-                renderPdfAsImage(cleanedBg2, 'networkCanvas2', scaledWidth2, scaledHeight2, pageNumber2);
-            }, 100);
+            pendingNetworkPdfRenders.push({
+                base64: cleanedBg2,
+                canvasId: 'networkCanvas2',
+                width: scaledWidth2,
+                height: scaledHeight2,
+                pageNumber: pageNumber2,
+            });
         } else {
             layoutHtml += `
                 <div id="networkBackground2" style="
@@ -4995,7 +4996,13 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
         console.log('ネットワークレイアウトHTML生成完了、viewerに設定します');
         console.log('viewer要素:', viewer);
         console.log('layoutHtmlの長さ:', layoutHtml.length);
+        cancelNetworkPdfRenders();
         viewer.innerHTML = layoutHtml;
+        pendingNetworkPdfRenders.forEach(({ base64, canvasId, width, height, pageNumber }) => {
+            if (document.getElementById(canvasId)) {
+                renderPdfAsImage(base64, canvasId, width, height, pageNumber);
+            }
+        });
         console.log('ネットワークレイアウトHTMLをviewerに設定完了');
         
         // クリック可能な線にイベントリスナーを追加
@@ -5182,35 +5189,14 @@ function bindUiEvents() {
     const setupCloseBtn = document.getElementById('setupCheckCloseBtn');
     if (setupCloseBtn) setupCloseBtn.addEventListener('click', closeSetupCheckBanner);
 
-    const videoThumb = document.getElementById('videoThumbnailContainer');
-    if (videoThumb) videoThumb.addEventListener('click', playVideo);
-
-    // 演習用定義.xlsx は href でダウンロードするため、クリック時の特別処理は不要
-
-    document.querySelectorAll('.video-item').forEach((item) => {
-        item.addEventListener('click', () => {
-            const videoId = item.dataset.videoId;
-            const title = item.dataset.videoTitle;
-            if (videoId && title) {
-                selectVideo(videoId, title, false, item);
-            }
-        });
-    });
-
-    // 初期表示：クラスター設定のサムネイルと選択状態を表示
-    const initialVideoItem = document.querySelector('.video-item[data-video-id="cluster-settings"]');
-    if (initialVideoItem) {
-        selectVideo('cluster-settings', 'クラスター設定', false, initialVideoItem);
-    }
-
-    // このツールの使い方モーダル（外部のお客様向け・システム解説なし）
+    // このツールの使い方モーダル（定義チェック画面）
     const toolGuideBannerBtn = document.getElementById('toolGuideBannerBtn');
     const toolGuideModal = document.getElementById('toolGuideModal');
     const toolGuideModalBody = document.getElementById('toolGuideModalBody');
     const toolGuideModalClose = document.getElementById('toolGuideModalClose');
     if (toolGuideBannerBtn && toolGuideModal && toolGuideModalBody) {
         const toolGuideContent = `
-            <p class="tool-guide-lead">帳票定義の内容を、基準と比較して確認するためのツールです。<br>クラスター設定・ネットワーク設定の差分を、画面上一目で確認できます。</p>
+            <p class="tool-guide-lead">公開できない・エラーが出る・どこが違うか分からないときに、基準XMLと自分のXMLを比較する画面です。<br>クラスター設定・ネットワーク設定の差分を、画面上一目で確認できます。</p>
 
             <h4 class="tool-guide-section-title"><span class="tool-guide-icon" aria-hidden="true">✓</span> このツールでできること</h4>
             <ul class="tool-guide-feature-list">
@@ -5247,15 +5233,6 @@ function bindUiEvents() {
         }
         toolGuideBannerBtn.addEventListener('click', openToolGuideModal);
 
-        window.addEventListener('onboarding-welcome-closed', () => {
-            if (!toolGuideBannerBtn) return;
-            const banner = document.getElementById('setupCheckBanner');
-            if (banner && banner.style.display === 'none') return;
-            toolGuideBannerBtn.classList.add('setup-check-btn--highlight');
-            requestAnimationFrame(() => {
-                toolGuideBannerBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            });
-        });
         function closeToolGuideModal(e) {
             if (!e || e.target === toolGuideModal || e.target === toolGuideModalClose) {
                 toolGuideModal.style.display = 'none';
@@ -5354,23 +5331,6 @@ function bindUiEvents() {
     const clusterCloseBtn = document.querySelector('.cluster-modal-close');
     if (clusterCloseBtn) clusterCloseBtn.addEventListener('click', closeClusterModal);
 
-    const videoModal = document.getElementById('videoModal');
-    if (videoModal) videoModal.addEventListener('click', handleVideoModalClick);
-    const videoModalContent = document.querySelector('.video-modal-content');
-    if (videoModalContent) {
-        videoModalContent.addEventListener('click', (event) => event.stopPropagation());
-    }
-
-    const videoCloseBtn = document.querySelector('.video-modal-close');
-    if (videoCloseBtn) videoCloseBtn.addEventListener('click', closeVideoModal);
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape') {
-            const modal = document.getElementById('videoModal');
-            if (modal && modal.style.display === 'flex') {
-                closeVideoModal();
-            }
-        }
-    });
 }
 
 function bindDelegatedEvents() {
@@ -5408,7 +5368,6 @@ function bindDelegatedEvents() {
 
 // ページ読み込み時にバナーの状態を初期化
 document.addEventListener('DOMContentLoaded', function() {
-    initOnboardingWelcome();
     initSetupCheckBanner();
     bindUiEvents();
     bindDelegatedEvents();

@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="css/ai-setup-base.css">
     <link rel="stylesheet" href="css/ai-setup-components.css">
 </head>
-<body>
+<body class="setup-guide-page">
     <div class="header">
         <div class="header-content">
             <div class="header-text">
@@ -18,77 +18,80 @@
     </div>
 
     <div class="ai-guide-container">
-        <div class="progress-section">
-            <div class="progress-header">
-                <h2>🚀 i-Reporter 導入手順</h2>
-                <p>AIがあなたの導入手順をナビゲーションします。各ステップを完了して、スムーズに導入を進めましょう。</p>
-            </div>
-            
-            <div class="progress-bar-container">
-                <div class="progress-bar" id="progressBar">
-                    <div class="progress-text" id="progressText">0%</div>
-                </div>
-            </div>
-        </div>
-
         <div class="main-content">
-            <div class="step-header">
-                <h2 class="step-title">i-Reporter 導入手順</h2>
-                <p class="step-description">以下の3つのステップを順番に完了して、i-Reporterの導入を完了しましょう。</p>
-            </div>
+            <section class="setup-overview" aria-label="導入に必要なソフトウェア一覧">
+                <div class="setup-overview-intro">
+                    <h2 class="step-title">i-Reporter 導入手順</h2>
+                    <p class="step-description">各ソフトウェアのカードをクリックして手順を確認し、チェックを完了してください。</p>
+                </div>
+                <p class="setup-overview-heading">導入に必要なソフトウェア</p>
+                <div class="setup-products-grid">
+                    <button type="button" class="setup-product-card conmas setup-product-card--clickable" data-product="conmas" aria-label="ConMas EXCEL COM Add-in の導入手順を表示">
+                        <span class="setup-product-icon" aria-hidden="true">📊</span>
+                        <div class="setup-product-text">
+                            <strong class="setup-product-title">ConMas EXCEL COM Add-in</strong>
+                            <span class="setup-product-desc">Excelからi-Reporterの機能を利用するためのアドイン</span>
+                        </div>
+                    </button>
+                    <button type="button" class="setup-product-card designer setup-product-card--clickable" data-product="designer" aria-label="ConMas Designer の導入手順を表示">
+                        <span class="setup-product-icon" aria-hidden="true">🎨</span>
+                        <div class="setup-product-text">
+                            <strong class="setup-product-title">ConMas Designer</strong>
+                            <span class="setup-product-desc">i-Reporterの帳票定義を作成・編集するための専用ツール</span>
+                        </div>
+                    </button>
+                    <button type="button" class="setup-product-card ireporter setup-product-card--clickable" data-product="ireporter" aria-label="i-Reporter for Windows の導入手順を表示">
+                        <span class="setup-product-icon" aria-hidden="true">💻</span>
+                        <div class="setup-product-text">
+                            <strong class="setup-product-title">i-Reporter for Windows</strong>
+                            <span class="setup-product-desc">Windows端末からi-Reporterにアクセスするためのアプリ</span>
+                        </div>
+                    </button>
+                    <button type="button" class="setup-product-card ios setup-product-card--clickable" data-product="ios" aria-label="i-Reporter iOS版 の導入手順を表示">
+                        <span class="setup-product-icon" aria-hidden="true">📱</span>
+                        <div class="setup-product-text">
+                            <strong class="setup-product-title">i-Reporter iOS版</strong>
+                            <span class="setup-product-desc">iOS端末からi-Reporterにアクセスするためのアプリ</span>
+                        </div>
+                    </button>
+                </div>
+                <div class="setup-overview-notes">
+                    <ul class="setup-overview-notes-list">
+                        <li>i-ReporterアプリはWindows版、iOS版いずれかを選択してください</li>
+                        <li>📱 iOS版はApp Storeで「i-Reporter」を検索してダウンロード</li>
+                        <li><strong>📌 最新版：</strong>必要な場合は公式ダウンロードページから取得</li>
+                    </ul>
+                    <a href="https://cimtops-support.com/i-Reporter/ja/software-jp" target="_blank" rel="noopener noreferrer" class="setup-overview-download-link">🌐 公式ダウンロードページを開く</a>
+                </div>
+            </section>
 
-            <div class="all-steps-container" id="allStepsContainer">
-            </div>
-
-            <div class="progress-indicator" id="progressIndicator">
-                <div class="progress-indicator-title">進行状況</div>
-                <div class="progress-indicator-steps">
-                    <div class="progress-indicator-step pending" data-step="2" onclick="toggleStep(2)">
-                        <div class="progress-indicator-step-number">1</div>
-                        <div>ConMas Excel COM add-in</div>
-                    </div>
-                    <div class="progress-indicator-step pending" data-step="3" onclick="toggleStep(3)">
-                        <div class="progress-indicator-step-number">2</div>
-                        <div>ConMasDesigner</div>
-                    </div>
-                    <div class="progress-indicator-step pending" data-step="4" onclick="toggleStep(4)">
-                        <div class="progress-indicator-step-number">3</div>
-                        <div>i-Reporterアプリ</div>
+            <div class="overall-progress-section">
+                <div class="overall-progress-header">
+                    <h3>全体進捗</h3>
+                    <div class="overall-progress-stats" id="overallProgressStats">0 / 0 項目完了</div>
+                </div>
+                <div class="overall-progress-bar-container">
+                    <div class="overall-progress-bar" id="overallProgressBar">
+                        <div class="overall-progress-text" id="overallProgressText">0%</div>
                     </div>
                 </div>
-            </div>
 
-            <button class="progress-indicator-toggle" id="progressIndicatorToggle" onclick="toggleProgressIndicator()">
-                📊
-            </button>
-
-        <div class="overall-progress-section">
-            <div class="overall-progress-header">
-                <h3>全体進捗</h3>
-                <div class="overall-progress-stats" id="overallProgressStats">0 / 0 項目完了</div>
-            </div>
-            <div class="overall-progress-bar-container">
-                <div class="overall-progress-bar" id="overallProgressBar">
-                    <div class="overall-progress-text" id="overallProgressText">0%</div>
+                <div class="progress-actions">
+                    <button class="action-btn danger" onclick="resetProgress()">
+                        <span class="btn-icon">🔄</span>
+                        進捗をリセット
+                    </button>
+                    <!-- CSP でも動くようリンクでトップへ（帳票定義トレーニングルーム） -->
+                    <a href="/" class="action-btn info">
+                        <span class="btn-icon">📊</span>
+                        演習ルームに戻る
+                    </a>
+                    <button class="action-btn warning" onclick="openTroubleshooting()">
+                        <span class="btn-icon">🔧</span>
+                        トラブル解決
+                    </button>
                 </div>
             </div>
-            
-            <div class="progress-actions">
-                <button class="action-btn danger" onclick="resetProgress()">
-                    <span class="btn-icon">🔄</span>
-                    進捗をリセット
-                </button>
-                <!-- CSP でも動くようリンクでトップへ（帳票定義トレーニングルーム） -->
-                <a href="/" class="action-btn info">
-                    <span class="btn-icon">📊</span>
-                    定義チェックツールに戻る
-                </a>
-                <button class="action-btn warning" onclick="openTroubleshooting()">
-                    <span class="btn-icon">🔧</span>
-                    トラブル解決
-                </button>
-            </div>
-        </div>
         </div>
     </div>
 
@@ -110,4 +113,3 @@
     <script src="js/ai-setup-init.js"></script>
 </body>
 </html>
-

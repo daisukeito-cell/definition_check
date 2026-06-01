@@ -3,6 +3,232 @@
  * カード、モーダル、チェックリストなどのコンポーネントスタイル定義
  */
 
+/* 導入ソフトウェア概要（ステップ前の一覧枠） */
+.setup-overview {
+    margin: 0 auto 1.5rem;
+    padding: 1.5rem 1.75rem 1.75rem;
+    max-width: 860px;
+    background: linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
+    border: 2px solid rgba(255, 149, 0, 0.35);
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(255, 149, 0, 0.12);
+}
+
+.setup-overview-heading {
+    margin: 0 0 1rem;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ff9500;
+}
+
+.setup-products-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.setup-product-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    min-height: 76px;
+    border-radius: 12px;
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+.setup-product-icon {
+    flex-shrink: 0;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.setup-product-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.setup-product-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.setup-product-desc {
+    font-size: 0.72rem;
+    line-height: 1.35;
+    opacity: 0.92;
+}
+
+.setup-product-card.conmas {
+    background: linear-gradient(135deg, #28a745, #20c997);
+}
+
+.setup-product-card.designer {
+    background: linear-gradient(135deg, #fd7e14, #e55a00);
+}
+
+.setup-product-card.ireporter {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+}
+
+.setup-product-card.ios {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
+.setup-product-card--clickable {
+    cursor: pointer;
+    border: none;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.setup-product-card--clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.setup-product-card--clickable:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.setup-overview-notes {
+    margin-top: 1.25rem;
+    padding: 1rem 1.1rem;
+    background: #f8f9fa;
+    border-left: 4px solid #ff9500;
+    border-radius: 8px;
+}
+
+.setup-overview-notes-list {
+    margin: 0 0 0.85rem;
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: #495057;
+}
+
+.setup-overview-notes-list li {
+    margin-bottom: 0.5rem;
+}
+
+.setup-overview-notes-list li:last-child {
+    margin-bottom: 0;
+}
+
+.setup-overview-notes-text {
+    margin: 0 0 0.65rem;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: #495057;
+}
+
+.setup-overview-notes-text:last-of-type {
+    margin-bottom: 0.85rem;
+}
+
+.setup-overview-download-link {
+    display: inline-block;
+    background: linear-gradient(135deg, #ff9500, #e68500);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(255, 149, 0, 0.35);
+}
+
+.setup-overview-download-link:hover {
+    background: linear-gradient(135deg, #e68500, #d67500);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 149, 0, 0.45);
+    color: #fff;
+    text-decoration: none;
+}
+
+/* 製品概要カードから開く導入手順モーダル */
+.product-guide-modal .setup-guide-modal-content {
+    max-width: 720px;
+}
+
+.product-guide-modal-content--wide {
+    max-width: 860px;
+}
+
+.product-guide-setup-section {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.product-guide-setup-section .setup-guide-platform {
+    margin-bottom: 1rem;
+}
+
+.product-guide-body .step-card-checklist-item .product-guide-setup-section {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.product-guide-header {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+.product-guide-header-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.product-guide-header-main h3 {
+    margin: 0;
+    color: #1976d2;
+    font-size: 1.15rem;
+    line-height: 1.3;
+}
+
+.product-guide-step-num {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2196f3, #1976d2);
+    color: #fff;
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 10px rgba(33, 150, 243, 0.3);
+}
+
+.product-guide-description {
+    margin: 0 0 1.25rem;
+    color: #666;
+    font-size: 1.05rem;
+    line-height: 1.6;
+}
+
+.product-guide-body .step-card-checklist {
+    margin-bottom: 0;
+}
+
+.product-guide-body .setup-guide-footer {
+    margin-top: 1.5rem;
+    padding-top: 0;
+    border-top: none;
+}
+
 /* ステップカード */
 .step-card {
     background: white;
@@ -1300,7 +1526,8 @@
 
 .overall-progress-header h3 {
     color: #ff9500;
-    font-size: 1.4rem;
+    font-size: 1.3rem;
+    font-weight: 600;
     margin: 0;
 }
 
@@ -1592,6 +1819,22 @@ a.action-btn {
     .progress-actions .action-btn {
         width: 100%;
         max-width: 300px;
+    }
+
+    .setup-overview {
+        padding: 1.25rem 1rem 1.5rem;
+    }
+
+    .setup-products-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .setup-product-card {
+        min-height: 70px;
+    }
+
+    .setup-product-title {
+        font-size: 0.85rem;
     }
 
     .direct-download-buttons {

@@ -171,6 +171,65 @@ body {
     opacity: 0.9;
 }
 
+.setup-check-btn--link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+.practice-complete-section {
+    background: white;
+    border-radius: 15px;
+    padding: 1.75rem 2rem;
+    margin-top: 2rem;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(255, 149, 0, 0.2);
+}
+
+.practice-complete-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #ff9500;
+    margin: 0 0 0.75rem;
+}
+
+.practice-complete-lead,
+.practice-complete-note {
+    color: #555;
+    line-height: 1.65;
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+}
+
+.practice-complete-note {
+    font-size: 0.95rem;
+    color: #666;
+}
+
+.practice-check-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.5rem;
+    padding: 0.65rem 1.35rem;
+    border-radius: 25px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    text-decoration: none;
+    box-shadow: 0 3px 10px rgba(0, 123, 255, 0.3);
+    transition: all 0.2s ease;
+}
+
+.practice-check-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(0, 123, 255, 0.35);
+    color: #fff;
+}
+
 .container {
     max-width: 1200px;
     margin: 2rem auto;
@@ -1267,6 +1326,39 @@ body {
     padding-bottom: 0.5rem;
 }
 
+.video-step-label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0.35rem;
+}
+
+.video-step-select {
+    width: 100%;
+    margin-bottom: 0.85rem;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.9rem;
+    border: 2px solid #ffe4cc;
+    border-radius: 8px;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+}
+
+.video-step-select:focus {
+    outline: none;
+    border-color: #ff9500;
+}
+
+.video-step-videos {
+    margin-top: 0.25rem;
+}
+
+.video-step-videos .step-pdf-btn {
+    margin-bottom: 0.5rem;
+}
+
 .tool-guide-item {
     padding: 0.6rem;
     margin-bottom: 0.3rem;
@@ -1303,17 +1395,18 @@ body {
     padding: 0.4rem 0.75rem;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #ff9500;
-    background: #fff8f0;
+    color: #fff;
+    background: linear-gradient(135deg, #ff9500 0%, #e68500 100%);
     border: 2px solid #ff9500;
     border-radius: 8px;
     text-decoration: none;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .step-pdf-btn:hover {
-    background: #ff9500;
-    color: white;
+    background: #fff;
+    color: #ff9500;
+    border-color: #ff9500;
 }
 
 .video-item {
@@ -3111,6 +3204,26 @@ body {
     color: #155724;
     font-weight: 600;
     text-align: center;
+}
+
+.cluster-presence-difference {
+    padding: 1rem 1.25rem;
+    background: #f8d7da;
+    border-radius: 8px;
+    border-left: 4px solid #dc3545;
+    color: #721c24;
+}
+
+.cluster-presence-difference h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+}
+
+.cluster-presence-difference p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    font-weight: 500;
 }
 
 /* レスポンシブ対応 */

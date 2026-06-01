@@ -64,9 +64,105 @@ const thumbnailPdfMap = {
 
 let currentVideoId = null;
 let referenceFileHandler = null;
+let referenceXmlSyncHandler = null;
+
+/** 動画一覧：STEPごとの動画・PDF・基準XML */
+const VIDEO_STEPS = {
+  step1: {
+    referenceFile: 'Definition_check.xml',
+    pdfHref: 'Material/Def_Check_1.pdf',
+    pdfLabel: '📄 STEP.1 の作業の流れ（PDF）',
+    videos: [
+      { id: 'cluster-settings', title: 'クラスター設定' },
+      { id: 'designer-basic', title: 'ConMas Designer 基本操作' },
+    ],
+  },
+  step2: {
+    referenceFile: 'Definition_Complet.xml',
+    pdfHref: 'Material/Def_Check_2.pdf',
+    pdfLabel: '📄 STEP.2 の作業の流れ（PDF）',
+    videos: [
+      { id: 'excel-output', title: 'Excel定義出力' },
+      { id: 'update-report', title: '帳票定義の更新' },
+    ],
+  },
+};
 
 export function setReferenceFileHandler(handler) {
   referenceFileHandler = handler;
+}
+
+export function setReferenceXmlSyncHandler(handler) {
+  referenceXmlSyncHandler = handler;
+}
+
+function bindVideoItemClicks(container) {
+  if (!container) return;
+  container.querySelectorAll('.video-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const videoId = item.dataset.videoId;
+      const title = item.dataset.videoTitle;
+      if (videoId && title) {
+        selectVideo(videoId, title, false, item);
+      }
+    });
+  });
+}
+
+function applyVideoStep(stepKey) {
+  const step = VIDEO_STEPS[stepKey];
+  const panel = document.getElementById('videoStepVideos');
+  const pdfLink = document.getElementById('videoStepPdfBtn');
+  if (!step || !panel) return;
+
+  if (pdfLink) {
+    pdfLink.href = step.pdfHref;
+    pdfLink.textContent = step.pdfLabel;
+  }
+
+  panel.innerHTML = step.videos
+    .map(
+      (video) =>
+        `<div class="video-item" role="listitem" data-video-id="${video.id}" data-video-title="${video.title}">${video.title}</div>`
+    )
+    .join('');
+
+  bindVideoItemClicks(panel);
+
+  const firstItem = panel.querySelector('.video-item');
+  if (firstItem) {
+    selectVideo(firstItem.dataset.videoId, firstItem.dataset.videoTitle, false, firstItem);
+  } else {
+    currentVideoId = null;
+    const thumbnailText = document.getElementById('videoThumbnailText');
+    if (thumbnailText) thumbnailText.textContent = '動画を選択してください';
+    const thumbnailImage = document.getElementById('videoThumbnailImage');
+    if (thumbnailImage) thumbnailImage.style.display = 'none';
+  }
+
+  if (syncReferenceXmlOnStepChange) {
+    const refSelect = document.getElementById('referenceXmlSelect');
+    if (refSelect && step.referenceFile && refSelect.value !== step.referenceFile) {
+      refSelect.value = step.referenceFile;
+      if (referenceXmlSyncHandler) {
+        referenceXmlSyncHandler();
+      }
+    }
+  }
+}
+
+let syncReferenceXmlOnStepChange = false;
+
+export function initVideoStepSelector(options = {}) {
+  syncReferenceXmlOnStepChange = options.syncReferenceXml === true;
+  const select = document.getElementById('videoStepSelect');
+  if (!select) return;
+
+  select.addEventListener('change', () => {
+    applyVideoStep(select.value);
+  });
+
+  applyVideoStep(select.value);
 }
 
 export function playVideo() {
@@ -79,7 +175,7 @@ export function playVideo() {
 
   if (!currentVideoId) {
     console.warn('currentVideoIdが設定されていません');
-    alert('まず動画一覧から動画を選択してください。');
+    alert('作業ステップを選び、動画一覧から視聴する動画を選択してください。');
     return;
   }
 

@@ -3,6 +3,13 @@
  * guideSteps配列とcompletedChecklistItemsの定義
  */
 
+/** Win/iOS 接続設定の認証情報（お客様環境ごとに異なる） */
+const CONNECTION_SETTING_CREDENTIALS_STEP =
+    '接続情報（接続先URL・ユーザーID・パスワード）: 貴社に割り当てられた値を、社内資料または管理者の案内で確認し、各欄へ入力してください';
+
+const CONNECTION_SETTING_CREDENTIAL_NOTE =
+    '※ 接続情報はお客様ごとに異なります。不明な場合は社内資料または管理者にお問い合わせください。';
+
 const guideSteps = [
     {
         id: 1,
@@ -115,9 +122,7 @@ const guideSteps = [
                             "アプリ起動後、右上の「歯車」アイコン → 「設定」をクリック",
                             "「新しい接続先を追加」をクリック",
                             "接続先名: サーバー名称を入力します。名称は任意に設定してください。",
-                            "接続先URL: https://sales.conmas-i-reporter.com/ConMasWebSEMINAROLINE/Rests/ConMasIReporter.aspx",
-                            "ユーザーID: 「am」または「op」で始まる4文字",
-                            "パスワード: 「pass」で始まる6文字",
+                            CONNECTION_SETTING_CREDENTIALS_STEP,
                             "「保存」をクリックして設定完了",
                             "設定した接続先を選択して「ログイン」をクリック",
                             "端末にログイン後、申請画面で必要な情報を入力",
@@ -132,9 +137,7 @@ const guideSteps = [
                             "アプリ起動後、左上の「歯車アイコン」をタップ",
                             "「接続先名」をタップ → 「新しい接続先を追加」",
                             "接続先名: サーバー名称を入力します。名称は任意に設定してください。",
-                            "接続先URL: https://sales.conmas-i-reporter.com/ConMasWebSEMINAROLINE/Rests/ConMasIReporter.aspx",
-                            "ユーザーID: 「am」または「op」で始まる4文字",
-                            "パスワード: 「pass」で始まる6文字",
+                            CONNECTION_SETTING_CREDENTIALS_STEP,
                             "「保存する」をタップして設定完了",
                             "設定した接続先を選択して「ログイン」をタップ",
                             "端末にログイン後、申請画面で必要な情報を入力",
@@ -148,3 +151,26 @@ const guideSteps = [
 ];
 
 let completedChecklistItems = new Set();
+
+/** 概要カード → 表示するステップ（iOS/Windows は同一ステップ内のプラットフォームを指定） */
+const PRODUCT_GUIDE_CONFIG = {
+    conmas: { stepId: 2 },
+    designer: { stepId: 3 },
+    ireporter: { stepId: 4, platform: 'Windows版' },
+    ios: { stepId: 4, platform: 'iOS版' },
+};
+
+const PRODUCT_GUIDE_MODAL_CLASS = 'product-guide-modal';
+let productGuideSuppressOpenUntil = 0;
+
+function isProductGuideOpen() {
+    return Boolean(document.querySelector(`.${PRODUCT_GUIDE_MODAL_CLASS}`));
+}
+
+function isProductGuideSuppressingOpen() {
+    return Date.now() < productGuideSuppressOpenUntil;
+}
+
+function suppressProductGuideOpen(ms = 400) {
+    productGuideSuppressOpenUntil = Date.now() + ms;
+}

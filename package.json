@@ -4,9 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "bun build ./src/index.html --outdir=dist --minify && bun run copy-public",
+    "build": "bun build ./src/index.html ./src/check.html --outdir=dist --minify && bun run copy-public",
     "copy-public": "bun scripts/copy-public.js",
-    "preview": "npx serve dist -l 3000"
+    "dev": "bun scripts/dev.js",
+    "preview": "bun run build && npx serve dist -l 3000",
+    "start": "bun run dev"
   },
   "dependencies": {
     "pdfjs-dist": "latest"

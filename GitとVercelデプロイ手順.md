@@ -85,13 +85,24 @@ bun run build
 エラーが出ずに終わり、`dist` フォルダができることを確認してください。  
 ここまでできていれば、Vercelでも同じビルドが動きます。
 
-（任意）ローカルでプレビューしたい場合:
+（推奨）ローカルで開発・プレビューする場合:
 
 ```bash
-bun run index.ts
+bun run dev
 ```
 
-ブラウザで表示されるURL（例: http://localhost:3000）を開いて動作を確認できます。
+ブラウザで次を開いて動作を確認できます。
+
+- メイン画面: http://localhost:3000/
+- 端末セットアップ: http://localhost:3000/setup_Tool/AI_setup.html
+
+`src/` や `public/` を編集して保存すると自動で再ビルドされます（終了は `Ctrl+C`）。
+
+本番と同じビルド成果物だけ確認する場合:
+
+```bash
+bun run preview
+```
 
 ---
 
