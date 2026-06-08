@@ -11,6 +11,7 @@ const youtubeIdMap = {
   'terminal-management': 'eQ7I8JH9C_M',
   // 帳票定義作成編
   'cluster-settings': '8WLbBc7GMkA',
+  'add-in-usage': 'YgZux2IY57g',
   'designer-basic': 'KBpXqYNXM7c',
   'excel-output': 'MZ1TAUnheQg',
   'excel-export': 'MZ1TAUnheQg', // 旧IDとの互換性のため
@@ -74,6 +75,7 @@ const VIDEO_STEPS = {
     pdfLabel: '📄 STEP.1 の作業の流れ（PDF）',
     videos: [
       { id: 'cluster-settings', title: 'クラスター設定' },
+      { id: 'add-in-usage', title: 'add-inの使い方' },
       { id: 'designer-basic', title: 'ConMas Designer 基本操作' },
     ],
   },
