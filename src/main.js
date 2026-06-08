@@ -15,6 +15,8 @@ import {
     shouldShowActionTypeComparison,
     shouldShowFormulaComparison,
     shouldShowGroupIdComparison,
+    computeCheckGroupSheetAnalysis,
+    evaluateGroupIdPairDifference,
 } from './modules/compare/cluster-diff.js';
 import { compareNetworkSettings as compareNetworkSettingsCore, checkNetworkDifference as checkNetworkDifferenceCore, getNetworkDifferenceDetails as getNetworkDifferenceDetailsCore, getNetworkPositionDifference as getNetworkPositionDifferenceCore, getNetworkRestrictionDifference as getNetworkRestrictionDifferenceCore } from './modules/compare/network-diff.js';
 import { buildDefInfoData } from './modules/compare/def-info-diff.js';
@@ -202,21 +204,28 @@ function getClusterModalDisplayNote() {
     `;
 }
 
-function renderClusterCompareStatus(match) {
-    return match
-        ? '<span class="cluster-compare-same">一致</span>'
-        : '<span class="cluster-compare-diff">不一致</span>';
+function renderClusterCompareStatus(match, severity = 'red') {
+    if (match) return '<span class="cluster-compare-same">一致</span>';
+    if (severity === 'blue') return '<span class="cluster-compare-optional">不一致（任意）</span>';
+    return '<span class="cluster-compare-diff">不一致</span>';
 }
 
 function renderClusterComparisonTable(rows) {
     const body = rows
         .map((row) => {
-            const rowClass = row.match ? 'cluster-compare-row-match' : 'cluster-compare-row-diff';
+            const rowClass = row.match
+                ? 'cluster-compare-row-match'
+                : row.matchSeverity === 'blue'
+                    ? 'cluster-compare-row-optional'
+                    : 'cluster-compare-row-diff';
+            const noteHtml = row.note
+                ? `<div class="cluster-compare-note">${escapeHtml(row.note)}</div>`
+                : '';
             return `<tr class="${rowClass}">
                 <td><strong>${escapeHtml(row.label)}</strong></td>
                 <td>${row.refHtml ?? escapeHtml(row.ref)}</td>
                 <td>${row.compHtml ?? escapeHtml(row.comp)}</td>
-                <td>${renderClusterCompareStatus(row.match)}</td>
+                <td>${renderClusterCompareStatus(row.match, row.matchSeverity)}${noteHtml}</td>
             </tr>`;
         })
         .join('');
@@ -725,9 +734,9 @@ function computeClusterTabBadgeLevel() {
                 currentSheetIndex: s,
             });
             if (!diff.hasDifference) continue;
-            if (!diff.isBasicMatch) {
+            if (!diff.isBasicMatch || diff.hasRedOtherDifferences) {
                 hasRed = true;
-            } else if (diff.hasOtherDifferences) {
+            } else if (diff.hasBlueOtherDifferences) {
                 hasBlue = true;
             }
         }
@@ -829,8 +838,9 @@ function computeDefInfoTabBadgeLevel(defInfo) {
         return buildDefInfoData(doc1, doc2);
     })();
     if (!data?.compareMode) return 'none';
-    const hasRed = !data.defTopName?.match || !data.nameParts?.match;
-    return hasRed ? 'red' : 'ok';
+    const hasRed = !data.nameParts?.match;
+    const hasBlue = !data.defTopName?.match;
+    return resolveTabBadgeLevel(hasRed, hasBlue);
 }
 
 function setTabBadgeLegendVisible(visible) {
@@ -1581,9 +1591,12 @@ function displayClustersOnPdf() {
             if (xmlData1) {
                 const diffResult = checkClusterDifference(cluster, index);
                 isDifferent = diffResult.hasDifference;
-                if (isDifferent) {
+                if (!diffResult.isBasicMatch || diffResult.hasRedOtherDifferences) {
                     borderColor = '#dc3545';
                     backgroundColor = 'rgba(220, 53, 69, 0.15)';
+                } else if (diffResult.hasBlueOtherDifferences) {
+                    borderColor = '#007bff';
+                    backgroundColor = 'rgba(0, 123, 255, 0.15)';
                 }
             }
             
@@ -1967,8 +1980,10 @@ async function generatePdfLayout(xmlData, displayMode, scale, fileSelect) {
         if (xmlData1 && xmlData2) {
             const diffResult = checkClusterDifference(cluster, index);
             isDifferent = diffResult.hasDifference;
-            if (isDifferent) {
+            if (!diffResult.isBasicMatch || diffResult.hasRedOtherDifferences) {
                 borderColor = '#dc3545';
+            } else if (diffResult.hasBlueOtherDifferences) {
+                borderColor = '#007bff';
             }
         }
         
@@ -2352,12 +2367,17 @@ function updateDefInfoLayout(defInfoOverride = null) {
     }
 
     const compareMode = data.compareMode;
-    const statusBadge = (match) =>
-        match
-            ? '<span class="def-info-status def-info-match">一致</span>'
-            : '<span class="def-info-status def-info-diff">差分あり</span>';
+    const statusBadge = (match, optional = false) => {
+        if (match) return '<span class="def-info-status def-info-match">一致</span>';
+        if (optional) return '<span class="def-info-status def-info-optional">差分あり</span>';
+        return '<span class="def-info-status def-info-diff">差分あり</span>';
+    };
 
-    const rowClass = (match) => (match ? 'def-info-row-match' : 'def-info-row-diff');
+    const rowClass = (match, optional = false) => {
+        if (match) return 'def-info-row-match';
+        if (optional) return 'def-info-row-optional';
+        return 'def-info-row-diff';
+    };
 
     let tableHtml;
     if (compareMode) {
@@ -2372,11 +2392,11 @@ function updateDefInfoLayout(defInfoOverride = null) {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr class="${rowClass(data.defTopName.match)}">
+                    <tr class="${rowClass(data.defTopName.match, true)}">
                         <td>帳票定義名称</td>
                         <td>${escapeHtml(data.defTopName.ref)}</td>
                         <td>${escapeHtml(data.defTopName.up)}</td>
-                        <td>${statusBadge(data.defTopName.match)}</td>
+                        <td>${statusBadge(data.defTopName.match, true)}</td>
                     </tr>
                     <tr class="${rowClass(data.nameParts.match)}">
                         <td>帳票名称自動作成</td>
@@ -3880,11 +3900,15 @@ function selectCluster(index) {
     }
 
     if (shouldShowGroupIdComparison(type1, type2)) {
+        const sheetGroupAnalysis = computeCheckGroupSheetAnalysis(clusters1, clusters2);
+        const groupIdDiff = evaluateGroupIdPairDifference(groupId1, groupId2, type1, type2, sheetGroupAnalysis);
         comparisonRows.push({
             label: 'グループID',
             ref: clusterFieldValue(cluster1, groupId1),
             comp: clusterFieldValue(cluster2, groupId2),
-            match: clusterFieldMatch(cluster1, cluster2, groupId1, groupId2),
+            match: !groupIdDiff.hasDifference,
+            matchSeverity: groupIdDiff.severity,
+            note: groupIdDiff.reason || '',
         });
     }
 
@@ -4523,7 +4547,8 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
         const diffResult = checkClusterDifference(cluster, index);
         const isDifferent = diffResult.hasDifference;
         const isBasicMatch = diffResult.isBasicMatch;
-        const hasOtherDifferences = diffResult.hasOtherDifferences;
+        const hasRedOtherDifferences = diffResult.hasRedOtherDifferences;
+        const hasBlueOtherDifferences = diffResult.hasBlueOtherDifferences;
         const differences = diffResult.differences || [];
         
         // INDEXと種別が一致しているが、他の項目が異なる場合は青色で！マークを表示
@@ -4532,11 +4557,14 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
         let showWarning = false;
         let warningColor = '#007bff'; // 警告マークの色（デフォルトは青色）
         
-        if (isBasicMatch && hasOtherDifferences) {
-            // INDEXと種別が一致しているが、他の項目が異なる場合
-            borderColor2 = '#007bff'; // 青色
-            showWarning = true; // ！マークを表示
-            warningColor = '#007bff'; // 青色の！マーク
+        if (isBasicMatch && hasRedOtherDifferences) {
+            borderColor2 = '#dc3545';
+            showWarning = true;
+            warningColor = '#dc3545';
+        } else if (isBasicMatch && hasBlueOtherDifferences) {
+            borderColor2 = '#007bff';
+            showWarning = true;
+            warningColor = '#007bff';
         } else if (!isBasicMatch) {
             // INDEXと種別が異なる場合
             borderColor2 = '#dc3545'; // 赤色
@@ -4546,7 +4574,12 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
         
         // 異なる項目のリストを生成（ツールチップ用）
         const differencesText = differences.length > 0 ? differences.join(', ') : '';
-        const tooltipText = differencesText ? `異なる項目: ${differencesText}` : '';
+        let tooltipText = differencesText ? `異なる項目: ${differencesText}` : '';
+        if (diffResult.groupIdReason) {
+            tooltipText = tooltipText
+                ? `${tooltipText}\nグループID: ${diffResult.groupIdReason}`
+                : `グループID: ${diffResult.groupIdReason}`;
+        }
         
         layoutHtml += `
             <div class="cluster-overlay" 

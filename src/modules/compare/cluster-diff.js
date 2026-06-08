@@ -73,6 +73,187 @@ export function shouldShowGroupIdComparison(type1, type2) {
     return type1 === 'Check' || type2 === 'Check';
 }
 
+export function getGroupIdFromCluster(cluster) {
+    if (!cluster) return '';
+    const inputParams = cluster.querySelector('inputParameters')?.textContent || '';
+    const groupId = extractParameter(inputParams, 'Group');
+    if (groupId !== '') return groupId;
+    return cluster.querySelector('groupId')?.textContent ||
+        cluster.querySelector('group')?.textContent ||
+        cluster.querySelector('groupid')?.textContent ||
+        cluster.getAttribute('groupId') ||
+        cluster.getAttribute('group') || '';
+}
+
+/** グループID文字列を整数に（未設定・-1 は -1） */
+export function parseGroupIdValue(raw) {
+    const s = String(raw ?? '').trim();
+    if (s === '' || s === '未設定') return -1;
+    const n = parseInt(s, 10);
+    if (Number.isNaN(n)) return -1;
+    return n;
+}
+
+function buildCheckGroupCountMap(clusters) {
+    const map = new Map();
+    clusters.forEach((cluster) => {
+        if ((cluster.querySelector('type')?.textContent || '') !== 'Check') return;
+        const gid = parseGroupIdValue(getGroupIdFromCluster(cluster));
+        if (gid < 0) return;
+        map.set(gid, (map.get(gid) || 0) + 1);
+    });
+    return map;
+}
+
+function sortedCountMultiset(map) {
+    return Array.from(map.values()).sort((a, b) => a - b);
+}
+
+function mapsHaveSameCounts(refMap, compMap) {
+    const refSorted = sortedCountMultiset(refMap);
+    const compSorted = sortedCountMultiset(compMap);
+    if (refSorted.length !== compSorted.length) return false;
+    return refSorted.every((v, i) => v === compSorted[i]);
+}
+
+function mapsExactlyEqual(refMap, compMap) {
+    if (refMap.size !== compMap.size) return false;
+    for (const [key, count] of refMap) {
+        if (compMap.get(key) !== count) return false;
+    }
+    return true;
+}
+
+function totalAssignedCount(map) {
+    let sum = 0;
+    for (const count of map.values()) sum += count;
+    return sum;
+}
+
+export function formatGroupCountSummary(map) {
+    if (!map || map.size === 0) return '割当なし';
+    return [...map.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([id, count]) => `ID${id}×${count}`)
+        .join('、');
+}
+
+export function describeGroupDistributionMismatch(refMap, compMap) {
+    const refTotal = totalAssignedCount(refMap);
+    const compTotal = totalAssignedCount(compMap);
+    const refSummary = formatGroupCountSummary(refMap);
+    const compSummary = formatGroupCountSummary(compMap);
+
+    if (refTotal !== compTotal) {
+        return `割当総数が異なります（基準: ${refTotal}件［${refSummary}］/ 比較: ${compTotal}件［${compSummary}］）`;
+    }
+    return `グループごとの割当個数が一致しません（基準: ${refSummary} / 比較: ${compSummary}）`;
+}
+
+/**
+ * シート内 Check クラスターのグループID割当数を比較
+ * - match: ID・個数とも一致
+ * - blue: 各グループの個数パターンは一致（IDの値は異なってよい）
+ * - red: 個数パターン不一致、または基準のみ割当で比較が未割当
+ */
+export function computeCheckGroupSheetAnalysis(clusters1, clusters2) {
+    const refMap = buildCheckGroupCountMap(clusters1);
+    const compMap = buildCheckGroupCountMap(clusters2);
+    const refSummary = formatGroupCountSummary(refMap);
+    const compSummary = formatGroupCountSummary(compMap);
+
+    if (!mapsHaveSameCounts(refMap, compMap)) {
+        return {
+            distributionSeverity: 'red',
+            refMap,
+            compMap,
+            refSummary,
+            compSummary,
+            distributionReason: describeGroupDistributionMismatch(refMap, compMap),
+        };
+    }
+    if (mapsExactlyEqual(refMap, compMap)) {
+        return {
+            distributionSeverity: 'match',
+            refMap,
+            compMap,
+            refSummary,
+            compSummary,
+            distributionReason: '',
+        };
+    }
+    return {
+        distributionSeverity: 'blue',
+        refMap,
+        compMap,
+        refSummary,
+        compSummary,
+        distributionReason: '',
+    };
+}
+
+export function evaluateGroupIdPairDifference(groupId1, groupId2, type1, type2, sheetAnalysis) {
+    if (!shouldShowGroupIdComparison(type1, type2)) {
+        return { hasDifference: false, severity: 'none', reason: '' };
+    }
+
+    const gid1 = parseGroupIdValue(groupId1);
+    const gid2 = parseGroupIdValue(groupId2);
+    const dist = sheetAnalysis?.distributionSeverity ?? 'match';
+    const refLabel = groupId1 !== '' && groupId1 != null ? String(groupId1) : String(gid1);
+    const compLabel = groupId2 !== '' && groupId2 != null ? String(groupId2) : String(gid2);
+
+    if (dist === 'red') {
+        if (gid1 >= 0 || gid2 >= 0) {
+            let reason = sheetAnalysis?.distributionReason || 'グループIDの割当パターンが一致しません。';
+            if (gid1 >= 0 && gid2 < 0) {
+                reason = `基準ではグループID ${refLabel} が割当済みですが、比較は未割当（-1）です。${reason}`;
+            }
+            return { hasDifference: true, severity: 'red', reason };
+        }
+        return { hasDifference: false, severity: 'none', reason: '' };
+    }
+    if (gid1 >= 0 && gid2 < 0) {
+        return {
+            hasDifference: true,
+            severity: 'red',
+            reason: `基準ではグループID ${refLabel} が割当済みですが、比較は未割当（-1）です。`,
+        };
+    }
+    if (gid1 !== gid2 && (gid1 >= 0 || gid2 >= 0)) {
+        return {
+            hasDifference: true,
+            severity: 'blue',
+            reason: `グループごとの割当個数は一致していますが、IDが異なります（基準: ${refLabel} / 比較: ${compLabel}）。シート全体: 基準［${sheetAnalysis?.refSummary || ''}］/ 比較［${sheetAnalysis?.compSummary || ''}］`,
+        };
+    }
+    return { hasDifference: false, severity: 'none', reason: '' };
+}
+
+let groupSheetAnalysisCache = { signature: '', analysis: null };
+
+function buildSheetGroupAnalysisSignature(clusters1, clusters2, sheetIndex) {
+    const encode = (clusters) => {
+        const parts = [];
+        clusters.forEach((cluster) => {
+            if ((cluster.querySelector('type')?.textContent || '') !== 'Check') return;
+            parts.push(String(parseGroupIdValue(getGroupIdFromCluster(cluster))));
+        });
+        return parts.join(',');
+    };
+    return `${sheetIndex}|${encode(clusters1)}|${encode(clusters2)}`;
+}
+
+function getCachedCheckGroupSheetAnalysis(clusters1, clusters2, sheetIndex) {
+    const signature = buildSheetGroupAnalysisSignature(clusters1, clusters2, sheetIndex);
+    if (groupSheetAnalysisCache.signature === signature) {
+        return groupSheetAnalysisCache.analysis;
+    }
+    const analysis = computeCheckGroupSheetAnalysis(clusters1, clusters2);
+    groupSheetAnalysisCache = { signature, analysis };
+    return analysis;
+}
+
 export function compareClusterSettings(cluster1, cluster2) {
     const name1 = cluster1.querySelector('name')?.textContent || '';
     const name2 = cluster2.querySelector('name')?.textContent || '';
@@ -386,18 +567,7 @@ export function checkClusterDifference(cluster, index, context = {}) {
         return cluster.querySelector('function')?.textContent || '';
     };
 
-    const getGroupId = (cluster) => {
-        if (!cluster) return '';
-        const inputParams = cluster.querySelector('inputParameters')?.textContent || '';
-        const groupId = extractParameter(inputParams, 'Group');
-        if (groupId !== '') {
-            return groupId;
-        }
-        return cluster.querySelector('groupId')?.textContent ||
-            cluster.querySelector('group')?.textContent ||
-            cluster.getAttribute('groupId') ||
-            cluster.getAttribute('group') || '';
-    };
+    const sheetGroupAnalysis = getCachedCheckGroupSheetAnalysis(clusters1, clusters2, currentSheetIndex);
 
     const required1 = getRequired(cluster1);
     const required2 = getRequired(cluster2);
@@ -405,36 +575,60 @@ export function checkClusterDifference(cluster, index, context = {}) {
     const actionType2 = getActionType(cluster2);
     const formula1 = getFormula(cluster1);
     const formula2 = getFormula(cluster2);
-    const groupId1 = getGroupId(cluster1);
-    const groupId2 = getGroupId(cluster2);
+    const groupId1 = getGroupIdFromCluster(cluster1);
+    const groupId2 = getGroupIdFromCluster(cluster2);
 
     const choiceDiff = getChoiceDifference(cluster2, index, { xmlData1, xmlData2, currentSheetIndex });
 
     const differences = [];
+    const blueDifferences = [];
+    const redDifferences = [];
 
     if (shouldShowRequiredComparison(required1, required2) && required1 !== required2) {
         differences.push('必須の有無');
+        blueDifferences.push('必須の有無');
     }
     if (shouldShowActionTypeComparison(type1, type2) && actionType1 !== actionType2) {
         differences.push('アクション種別');
+        blueDifferences.push('アクション種別');
     }
     if (shouldShowFormulaComparison(type1, type2) && formula1 !== formula2) {
         differences.push('計算式内容');
-    }
-    if (shouldShowGroupIdComparison(type1, type2) && groupId1 !== groupId2) {
-        differences.push('グループID');
-    }
-    if (choiceDiff.hasDifferences) {
-        differences.push('選択肢');
+        blueDifferences.push('計算式内容');
     }
 
-    const hasOtherDifferences = differences.length > 0;
+    const groupIdDiff = evaluateGroupIdPairDifference(
+        groupId1,
+        groupId2,
+        type1,
+        type2,
+        sheetGroupAnalysis,
+    );
+    if (groupIdDiff.hasDifference) {
+        differences.push('グループID');
+        if (groupIdDiff.severity === 'red') redDifferences.push('グループID');
+        else blueDifferences.push('グループID');
+    }
+
+    const groupIdReason = groupIdDiff.reason || '';
+
+    if (choiceDiff.hasDifferences) {
+        differences.push('選択肢');
+        blueDifferences.push('選択肢');
+    }
+
+    const hasRedOtherDifferences = redDifferences.length > 0;
+    const hasBlueOtherDifferences = blueDifferences.length > 0;
+    const hasOtherDifferences = hasRedOtherDifferences || hasBlueOtherDifferences;
 
     return {
         hasDifference: !isBasicMatch || hasOtherDifferences,
         isBasicMatch: isBasicMatch,
         hasOtherDifferences: hasOtherDifferences,
+        hasRedOtherDifferences: hasRedOtherDifferences,
+        hasBlueOtherDifferences: hasBlueOtherDifferences,
         differences: differences,
+        groupIdReason: groupIdReason,
         isNameDifferent: name1 !== name2,
         isTypeDifferent: type1 !== type2
     };
