@@ -56,6 +56,23 @@ export function extractParameter(inputParams, paramName) {
     return match ? match[1] : '';
 }
 
+/** クラスター設定タブで比較行を出すか（カーボンコピーは専用タブで比較） */
+export function shouldShowRequiredComparison(required1, required2) {
+    return required1 === 'あり' || required2 === 'あり';
+}
+
+export function shouldShowActionTypeComparison(type1, type2) {
+    return type1 === 'Action' || type2 === 'Action';
+}
+
+export function shouldShowFormulaComparison(type1, type2) {
+    return type1 === 'Calculate' || type2 === 'Calculate';
+}
+
+export function shouldShowGroupIdComparison(type1, type2) {
+    return type1 === 'Check' || type2 === 'Check';
+}
+
 export function compareClusterSettings(cluster1, cluster2) {
     const name1 = cluster1.querySelector('name')?.textContent || '';
     const name2 = cluster2.querySelector('name')?.textContent || '';
@@ -382,23 +399,6 @@ export function checkClusterDifference(cluster, index, context = {}) {
             cluster.getAttribute('group') || '';
     };
 
-    const getCarbonCopyInfo = (cluster, currentIndex) => {
-        if (!cluster) return null;
-        const carbonCopy = cluster.querySelector('carbonCopy');
-        if (!carbonCopy) return null;
-        const targetCluster = carbonCopy.querySelector('targetCluster');
-        if (!targetCluster) return null;
-        const clusterId = targetCluster.querySelector('clusterId')?.textContent || '';
-        if (!clusterId) return null;
-        const targetIndex = parseInt(clusterId);
-        if (isNaN(targetIndex)) return null;
-        const targetIndexDisplay = targetIndex + 1;
-        if (targetIndexDisplay === currentIndex) {
-            return null;
-        }
-        return targetIndexDisplay;
-    };
-
     const required1 = getRequired(cluster1);
     const required2 = getRequired(cluster2);
     const actionType1 = getActionType(cluster1);
@@ -408,32 +408,24 @@ export function checkClusterDifference(cluster, index, context = {}) {
     const groupId1 = getGroupId(cluster1);
     const groupId2 = getGroupId(cluster2);
 
-    const currentClusterIndex = index + 1;
-    const carbonCopyTarget1 = getCarbonCopyInfo(cluster1, currentClusterIndex);
-    const carbonCopyTarget2 = getCarbonCopyInfo(cluster2, currentClusterIndex);
-
     const choiceDiff = getChoiceDifference(cluster2, index, { xmlData1, xmlData2, currentSheetIndex });
 
     const differences = [];
 
-    if (required1 !== required2) {
+    if (shouldShowRequiredComparison(required1, required2) && required1 !== required2) {
         differences.push('必須の有無');
     }
-    if (actionType1 !== actionType2) {
-        const isSignType = ['Create', 'Inspect', 'Approval'].includes(type1) || ['Create', 'Inspect', 'Approval'].includes(type2);
-        differences.push(isSignType ? 'サイン種別' : 'アクション種別');
+    if (shouldShowActionTypeComparison(type1, type2) && actionType1 !== actionType2) {
+        differences.push('アクション種別');
     }
-    if (formula1 !== formula2) {
+    if (shouldShowFormulaComparison(type1, type2) && formula1 !== formula2) {
         differences.push('計算式内容');
     }
-    if (groupId1 !== groupId2) {
+    if (shouldShowGroupIdComparison(type1, type2) && groupId1 !== groupId2) {
         differences.push('グループID');
     }
     if (choiceDiff.hasDifferences) {
         differences.push('選択肢');
-    }
-    if (carbonCopyTarget1 !== carbonCopyTarget2) {
-        differences.push('カーボンコピー');
     }
 
     const hasOtherDifferences = differences.length > 0;

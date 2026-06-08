@@ -70,13 +70,65 @@
 
         <div class="results" id="results" style="display:none;">
             <div class="result-box" id="resultBox"></div>
+            <h3 class="tab-section-title" id="tabSectionTitle">🔧 クラスター設定</h3>
             <div class="tabs">
                 <button class="tab" data-tab="results" style="display: none;">比較結果</button>
                 <button class="tab" data-tab="structure" style="display: none;">構造比較</button>
                 <button class="tab active" data-tab="pdf-layout" title="シート上の項目ごとの差分を確認">クラスター設定</button>
                 <button class="tab" data-tab="network-layout" title="つながり・遷移の差分を確認">ネットワーク設定</button>
+                <button class="tab" data-tab="carbon-copy-layout" title="カーボンコピー設定の差分を確認">カーボンコピー設定</button>
                 <button class="tab" data-tab="def-info-layout" title="帳票定義名称・帳票名称自動作成を確認">帳票定義情報設定</button>
             </div>
+            <div class="tab-badge-legend" id="tabBadgeLegend" style="display: none;">
+                <span class="tab-badge-legend-item">
+                    <span class="tab-diff-badge tab-diff-badge--ok" aria-hidden="true">✔</span>
+                    不一致要素なし
+                </span>
+                <span class="tab-badge-legend-item">
+                    <span class="tab-diff-badge tab-diff-badge--blue" aria-hidden="true">!</span>
+                    不一致のみ（修正は任意）
+                </span>
+                <span class="tab-badge-legend-item">
+                    <span class="tab-diff-badge tab-diff-badge--red" aria-hidden="true">!</span>
+                    不一致あり（修正が必要）
+                </span>
+            </div>
+
+            <div class="tab-panel-intro active" id="pdf-layoutIntro" data-tab-panel="pdf-layout">
+                <p>シート上の項目（クラスター）ごとの差分を確認できます。比較XMLから抽出したクラスター設定を可視化し、各アイコンをクリックすると詳細を確認できます。</p>
+                <p class="tab-panel-intro-label"><strong>アイコンの色の解説：</strong></p>
+                <ul class="cluster-legend-list">
+                    <li><span class="cluster-legend-swatch cluster-legend-swatch--orange" aria-hidden="true"></span>基準となるクラスター</li>
+                    <li><span class="cluster-legend-swatch cluster-legend-swatch--blue" aria-hidden="true"></span>index、種別、名称が一致</li>
+                    <li><span class="cluster-legend-swatch cluster-legend-swatch--red" aria-hidden="true"></span>index、種別、名称が異なる</li>
+                    <li><span class="tab-diff-badge tab-diff-badge--blue" aria-hidden="true">!</span>不一致のみ（修正は任意）</li>
+                    <li><span class="tab-diff-badge tab-diff-badge--red" aria-hidden="true">!</span>不一致あり（修正が必要）</li>
+                </ul>
+            </div>
+            <div class="tab-panel-intro" id="network-layoutIntro" data-tab-panel="network-layout" style="display: none;">
+                <p>クラスター間のつながり・遷移の差分を確認できます。XMLから抽出したネットワーク設定を可視化し、各ネットワーク線をクリックすると先行・後続の関係と差分内容を確認できます。</p>
+                <p class="tab-panel-intro-label"><strong>線の色の解説：</strong></p>
+                <ul class="network-legend-list">
+                    <li><span class="network-legend-line network-legend-line--orange" aria-hidden="true"></span>基準となるネットワーク</li>
+                    <li><span class="network-legend-line network-legend-line--blue" aria-hidden="true"></span>ネットワーク設定が一致</li>
+                    <li><span class="network-legend-line network-legend-line--red" aria-hidden="true"></span>ネットワーク設定が異なる</li>
+                    <li><span class="network-legend-line network-legend-line--red-dashed" aria-hidden="true"></span>ネットワーク設定が不足している</li>
+                </ul>
+            </div>
+            <div class="tab-panel-intro" id="carbon-copy-layoutIntro" data-tab-panel="carbon-copy-layout" style="display: none;">
+                <p>シート上のクラスターについて、カーボンコピー元・先の設定を基準XMLと比較XMLで照合します。クラスターをクリックすると詳細が表で表示されます。</p>
+                <p class="tab-panel-intro-label"><strong>表示の解説：</strong></p>
+                <ul class="carbon-copy-legend-list">
+                    <li><span class="carbon-copy-legend-swatch carbon-copy-legend-swatch--source" aria-hidden="true"></span>カーボンコピー<strong>元</strong></li>
+                    <li><span class="carbon-copy-legend-swatch carbon-copy-legend-swatch--target" aria-hidden="true"></span>カーボンコピー<strong>先</strong></li>
+                    <li><span class="carbon-copy-legend-swatch carbon-copy-legend-swatch--none" aria-hidden="true"></span>設定なし</li>
+                    <li><span class="carbon-copy-legend-swatch carbon-copy-legend-swatch--diff" aria-hidden="true"></span>基準XMLと設定が異なる</li>
+                </ul>
+            </div>
+            <div class="tab-panel-intro" id="def-info-layoutIntro" data-tab-panel="def-info-layout" style="display: none;">
+                <p>帳票定義全体の設定のうち、帳票定義名称（<code>defTopName</code>）と帳票名称自動作成（<code>nameParts</code>）を基準XMLと比較XMLで照合します。</p>
+            </div>
+
             <div class="tab-content" id="resultsTab" style="display: none;">
                 <div class="comparison-results" id="resultsContent">
                     <div class="results-header">
@@ -115,19 +167,7 @@
                 </div>
             </div>
             <div class="tab-content active" id="pdf-layoutTab">
-                <div class="pdf-layout-viewer" id="pdfLayoutContent">
-                    <div class="pdf-layout-header">
-                        <h3>🔧 クラスター設定</h3>
-                        <p>シート上の項目（クラスター）ごとの差分を確認できます。比較XMLから抽出したクラスター設定を可視化し、各アイコンをクリックすると詳細を確認できます。</p>
-                        <p><strong>アイコンの色の解説：</strong></p>
-                        <ul style="font-size: 0.9rem; margin: 0.5rem 0; padding-left: 1.2rem;">
-                            <li><span style="color: #ff9500; font-weight: bold;">オレンジ</span>：基準となるクラスター</li>
-                            <li><span style="color: #007bff; font-weight: bold;">青</span>：index、種別、名称が一致</li>
-                            <li><span style="color: #dc3545; font-weight: bold;">赤</span>：index、種別、名称が異なる</li>
-                            <li><span style="font-weight: bold;">！</span>：設定に差分がある</li>
-                        </ul>
-                    </div>
-                    
+                <div class="pdf-layout-viewer tab-panel-body" id="pdfLayoutContent">
                     <div class="pdf-controls" style="display: none;">
                         <div class="control-group">
                             <label>比較ファイル:</label>
@@ -227,18 +267,7 @@
             </div>
             
             <div class="tab-content" id="network-layoutTab">
-                <div class="network-layout-viewer" id="networkLayoutContent">
-                    <div class="network-layout-header" style="margin-bottom: 1rem;">
-                        <h3>🔗 ネットワーク設定</h3>
-                        <p>クラスター間のつながり・遷移の差分を確認できます。XMLから抽出したネットワーク設定を可視化し、各ネットワーク線をクリックすると先行・後続の関係と差分内容を確認できます。</p>
-                        <p><strong>線の色の解説：</strong></p>
-                        <ul style="font-size: 0.9rem; margin: 0.5rem 0; padding-left: 1.2rem;">
-                            <li><span style="color: #ff9500; font-weight: bold;">オレンジ線</span>：基準となるネットワーク</li>
-                            <li><span style="color: #007bff; font-weight: bold;">青線</span>：ネットワーク設定が一致</li>
-                            <li><span style="color: #dc3545; font-weight: bold;">赤線</span>：ネットワーク設定が異なる</li>
-                            <li><span style="color: #dc3545; font-weight: bold;">赤破線</span>：ネットワーク設定が不足している</li>
-                        </ul>
-                    </div>
+                <div class="network-layout-viewer tab-panel-body" id="networkLayoutContent">
                     <!-- シート選択（複数シート対応） -->
                     <div class="sheet-selection-container" id="networkSheetSelectionContainer" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
                         <label style="font-weight: 600; color: #495057; margin-bottom: 0.5rem; display: block;">📄 シート選択:</label>
@@ -257,12 +286,31 @@
                 </div>
             </div>
 
-            <div class="tab-content" id="def-info-layoutTab">
-                <div class="def-info-layout-viewer" id="defInfoLayoutContent">
-                    <div class="def-info-layout-header" style="margin-bottom: 1rem;">
-                        <h3>📋 帳票定義情報設定</h3>
-                        <p>帳票定義全体の設定のうち、帳票定義名称（<code>defTopName</code>）と帳票名称自動作成（<code>nameParts</code>）を基準XMLと比較XMLで照合します。</p>
+            <div class="tab-content" id="carbon-copy-layoutTab">
+                <div class="carbon-copy-layout-viewer tab-panel-body" id="carbonCopyLayoutContent">
+                    <div class="sheet-selection-container" id="carbonCopySheetSelectionContainer" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <label style="font-weight: 600; color: #495057; margin-bottom: 0.5rem; display: block;">📄 シート選択:</label>
+                        <div class="sheet-navigation" id="carbonCopySheetNavigationVisible"></div>
                     </div>
+                    <div class="carbon-copy-layout-row">
+                        <div class="pdf-container carbon-copy-pdf-container">
+                            <div class="pdf-viewer" id="carbonCopyViewer">
+                                <div class="carbon-copy-placeholder">
+                                    XMLファイルを選択してカーボンコピー設定を表示してください
+                                </div>
+                            </div>
+                        </div>
+                        <div class="carbon-copy-detail-panel" id="carbonCopyDetailPanel">
+                            <h4>📋 選択中のクラスター</h4>
+                            <p class="carbon-copy-detail-hint">シート上のクラスターをクリックすると、元・先の設定が表で表示されます。</p>
+                            <div id="carbonCopyDetailContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="def-info-layoutTab">
+                <div class="def-info-layout-viewer tab-panel-body" id="defInfoLayoutContent">
                     <div id="defInfoViewer">
                         <div class="def-info-placeholder">
                             XMLファイルを選択して帳票定義情報を表示してください
