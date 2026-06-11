@@ -1,3 +1,4 @@
+import './modules/analytics.js';
 import pdfjsLib from './modules/pdf-worker.js';
 import { initSetupCheckBanner, goToSetupGuide, closeSetupCheckBanner } from './modules/setup-banner.js';
 import { initAppVersionUI } from './modules/version-ui.js';

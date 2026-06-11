@@ -12,6 +12,7 @@
     "start": "bun run dev"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "pdfjs-dist": "latest"
   },
   "devDependencies": {
