@@ -13,7 +13,10 @@
                 <div class="logo-text">i-Reporter</div>
             </div>
         </div>
-        <div class="header-title">演習ルーム</div>
+        <div class="header-right">
+            <div class="header-title">演習ルーム</div>
+            <button type="button" class="app-version-badge" id="appVersionBadge">Ver 1.0.0</button>
+        </div>
     </div>
 
     <!-- 上部ガイドバー：端末準備＋このツールの使い方（非表示は localStorage＋「ガイドバーを表示」） -->
@@ -67,14 +70,13 @@
                     </div>
                 </div>
                 <div class="video-list">
-                    <div class="video-list-title">📋 動画一覧</div>
-                    
                     <label for="videoStepSelect" class="video-step-label">作業するステップ</label>
                     <select id="videoStepSelect" class="video-step-select" aria-label="作業するステップを選択">
                         <option value="step1">STEP.1 帳票定義の作成</option>
                         <option value="step2">STEP.2 帳票定義の更新</option>
                     </select>
                     <a href="Material/Def_Check_1.pdf" target="_blank" rel="noopener noreferrer" class="step-pdf-btn" id="videoStepPdfBtn">📄 STEP.1 の作業の流れ（PDF）</a>
+                    <div class="video-list-title">📋 動画一覧</div>
                     <div id="videoStepVideos" class="video-step-videos" role="list"></div>
                     <a href="https://manuals.i-reporter.jp/glossary" target="_blank" rel="noopener noreferrer" class="tool-glossary-link" id="toolGlossaryLink">📖 用語集</a>
                 </div>
@@ -86,7 +88,13 @@
             <h2 id="practiceCompleteTitle" class="practice-complete-title">作業の一区切り</h2>
             <p class="practice-complete-lead">PDFで流れを確認し、動画を見ながら Excel → Designer → 公開まで進めます。必要に応じて i-Reporter アプリで入力確認も行えます。</p>
             <p class="practice-complete-note">動作確認で問題なければ、ここで完了して構いません。エラーが出る・公開できない・どこが違うか分からないときだけ、定義チェックをご利用ください。</p>
-            <a href="/check.html?step=step1" class="practice-check-link" id="goToCheckBtn">定義チェックへ（任意）</a>
+            <div class="practice-complete-actions">
+                <a href="/check.html?step=step1" class="practice-check-link" id="goToCheckBtn">定義チェックへ（任意）</a>
+                <button type="button" class="practice-trouble-btn" id="practiceTroubleBtn">
+                    <span class="practice-trouble-btn-icon" aria-hidden="true">🔧</span>
+                    よくあるトラブル
+                </button>
+            </div>
         </section>
     </div>
 
@@ -98,6 +106,16 @@
                 <button type="button" class="tool-guide-modal-close" id="practiceGuideModalClose">×</button>
             </div>
             <div class="tool-guide-modal-body" id="practiceGuideModalBody"></div>
+        </div>
+    </div>
+    <!-- よくあるトラブル（Excel取り込みエラー等） -->
+    <div class="tool-guide-modal" id="practiceTroubleModal" style="display: none;">
+        <div class="tool-guide-modal-content trouble-guide-modal-content">
+            <div class="tool-guide-modal-header">
+                <h3>⚠️ よくあるトラブル</h3>
+                <button type="button" class="tool-guide-modal-close" id="practiceTroubleModalClose" aria-label="閉じる">×</button>
+            </div>
+            <div class="tool-guide-modal-body" id="practiceTroubleModalBody"></div>
         </div>
     </div>
     <!-- 初回訪問：このページの案内（localStorage で非表示にできる） -->

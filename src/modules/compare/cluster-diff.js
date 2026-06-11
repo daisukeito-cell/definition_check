@@ -50,6 +50,37 @@ export function getClusterTypeJapanese(type) {
     return typeMap[type] || type;
 }
 
+/**
+ * アクションクラスターのアクション種別（ActionType）の日本語表記マッピング
+ *
+ * Designerのプルダウン表示と対応（XMLの ActionType 値は英語）
+ */
+export function getActionTypeJapanese(actionType) {
+    if (!actionType || actionType === '未設定') return '未設定';
+
+    const typeMap = {
+        document: '参照ドキュメント起動',
+        sheetjump: 'シートジャンプ',
+        menu: 'サーバー送信メニュー',
+        sheetcopy: 'シートコピー',
+        noentrymark: '記入不要マークを表示',
+        noentry: '記入不要マークを表示',
+        url: 'URLを開く',
+        gateway: 'Gateway連携',
+        timer: 'タイマー起動',
+        qrcode: 'QRコード生成',
+        biometrics: '生体認証',
+        clearall: '一括クリア',
+        library: 'ライブラリ画面へ戻る',
+        externalprogram: '外部プログラム実行',
+        fileoutput: 'ファイル出力(テキスト)',
+        autoinput: '自動入力',
+    };
+
+    const key = String(actionType).trim().toLowerCase();
+    return typeMap[key] || actionType;
+}
+
 export function extractParameter(inputParams, paramName) {
     const regex = new RegExp(`${paramName}=([^;]+)`);
     const match = inputParams.match(regex);

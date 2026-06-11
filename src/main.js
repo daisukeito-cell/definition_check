@@ -1,5 +1,6 @@
 import pdfjsLib from './modules/pdf-worker.js';
 import { initSetupCheckBanner, goToSetupGuide, closeSetupCheckBanner } from './modules/setup-banner.js';
+import { initAppVersionUI } from './modules/version-ui.js';
 import {
     downloadFile,
     setReferenceFileHandler,
@@ -7,6 +8,7 @@ import {
 import { performXmlComparison as performXmlComparisonCore } from './modules/compare/xml-compare.js';
 import {
     getClusterTypeJapanese,
+    getActionTypeJapanese,
     extractParameter,
     compareClusterSettings as compareClusterSettingsCore,
     getChoiceDifference as getChoiceDifferenceCore,
@@ -38,7 +40,7 @@ const TAB_BADGE_CONFIG = [
 
 const TAB_BADGE_LEVELS = {
     ok: { symbol: '✔', ariaLabel: '不一致要素なし' },
-    blue: { symbol: '!', ariaLabel: '不一致のみ（修正は任意）' },
+    blue: { symbol: '!', ariaLabel: '不一致あり（修正は任意）' },
     red: { symbol: '!', ariaLabel: '不一致あり（修正が必要）' },
 };
 
@@ -3517,7 +3519,7 @@ function selectCluster(index) {
             previewExtraRows += `<div class="cluster-basic-item"><span class="cluster-basic-label">必須の有無:</span><span class="cluster-basic-value">${escapeHtml(required1)}</span></div>`;
         }
         if (shouldShowActionTypeComparison(type1, '')) {
-            previewExtraRows += `<div class="cluster-basic-item"><span class="cluster-basic-label">アクション種別:</span><span class="cluster-basic-value">${escapeHtml(actionType1 || '未設定')}</span></div>`;
+            previewExtraRows += `<div class="cluster-basic-item"><span class="cluster-basic-label">アクション種別:</span><span class="cluster-basic-value">${escapeHtml(getActionTypeJapanese(actionType1 || '未設定'))}</span></div>`;
         }
         if (shouldShowFormulaComparison(type1, '')) {
             previewExtraRows += `<div class="cluster-basic-item"><span class="cluster-basic-label">計算式内容:</span><span class="cluster-basic-value">${escapeHtml(formula1 || '未設定')}</span></div>`;
@@ -3884,8 +3886,8 @@ function selectCluster(index) {
     if (shouldShowActionTypeComparison(type1, type2)) {
         comparisonRows.push({
             label: 'アクション種別',
-            ref: clusterFieldValue(cluster1, actionType1 || '未設定'),
-            comp: clusterFieldValue(cluster2, actionType2 || '未設定'),
+            ref: clusterFieldValue(cluster1, getActionTypeJapanese(actionType1)),
+            comp: clusterFieldValue(cluster2, getActionTypeJapanese(actionType2)),
             match: clusterFieldMatch(cluster1, cluster2, actionType1, actionType2),
         });
     }
@@ -5978,6 +5980,7 @@ function bindDelegatedEvents() {
 
 // ページ読み込み時にバナーの状態を初期化
 document.addEventListener('DOMContentLoaded', function() {
+    initAppVersionUI();
     initSetupCheckBanner();
     bindUiEvents();
     bindDelegatedEvents();

@@ -1,5 +1,7 @@
 import { initSetupCheckBanner, goToSetupGuide, closeSetupCheckBanner } from './modules/setup-banner.js';
+import { initAppVersionUI } from './modules/version-ui.js';
 import { initOnboardingWelcome } from './modules/onboarding-welcome.js';
+import { initTroubleGuideUI } from './modules/trouble-guide-ui.js';
 import {
     playVideo,
     closeVideoModal,
@@ -89,6 +91,7 @@ function bindPracticeUi() {
     initVideoStepSelector({ syncReferenceXml: false });
     updateCheckPageLinks();
     bindPracticeGuideModal();
+    initTroubleGuideUI();
 
     const videoModal = document.getElementById('videoModal');
     if (videoModal) videoModal.addEventListener('click', handleVideoModalClick);
@@ -109,6 +112,7 @@ function bindPracticeUi() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    initAppVersionUI();
     initOnboardingWelcome();
     initSetupCheckBanner();
     bindPracticeUi();
