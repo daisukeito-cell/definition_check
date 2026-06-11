@@ -1,3 +1,7 @@
 import { inject } from '@vercel/analytics';
 
-inject();
+const isLocal =
+  typeof location !== 'undefined' &&
+  (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+
+inject({ mode: isLocal ? 'development' : 'production' });
