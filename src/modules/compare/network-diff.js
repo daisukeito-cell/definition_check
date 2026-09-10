@@ -1,3 +1,137 @@
+import { extractParameter } from './cluster-diff.js';
+
+/**
+ * customMasterSearchField は後続マスター選択クラスターのカスタムマスター上のフィールド番号。
+ * 空: 未設定 / -1: レコードキー / 0: 親バリュー / 1以上: 通常フィールド
+ */
+export function isCustomMasterSearchFieldEnabled(raw) {
+    return String(raw ?? '').trim() !== '';
+}
+
+function findSheetByNo(doc, sheetNo, fallbackSheetIndex = 0) {
+    const sheets = doc.querySelectorAll('sheets sheet');
+    if (!sheets.length) return null;
+    const sn = String(sheetNo ?? '').trim();
+    if (sn !== '') {
+        const byAttr = Array.from(sheets).find((s) => {
+            const no =
+                s.querySelector('sheetNo')?.textContent ||
+                s.getAttribute('sheetNo') ||
+                s.querySelector('clusters cluster sheetNo')?.textContent ||
+                '';
+            return String(no).trim() === sn;
+        });
+        if (byAttr) return byAttr;
+        const idx = parseInt(sn, 10);
+        if (!isNaN(idx) && idx >= 1 && idx <= sheets.length) return sheets[idx - 1];
+    }
+    return sheets[fallbackSheetIndex] || sheets[0];
+}
+
+function findClusterBySheetAndId(doc, sheetNo, clusterId, fallbackSheetIndex = 0) {
+    const sheet = findSheetByNo(doc, sheetNo, fallbackSheetIndex);
+    if (!sheet) return null;
+    const idStr = String(clusterId ?? '').trim();
+    const clusters = sheet.querySelectorAll('clusters cluster');
+    for (let i = 0; i < clusters.length; i++) {
+        const c = clusters[i];
+        if ((c.querySelector('clusterId')?.textContent || '').trim() === idStr) return c;
+    }
+    const idx = parseInt(idStr, 10);
+    if (!Number.isNaN(idx) && idx >= 0 && idx < clusters.length) return clusters[idx];
+    return null;
+}
+
+function getClusterLabel(cluster) {
+    if (!cluster) return '';
+    return (
+        cluster.querySelector('name')?.textContent ||
+        cluster.querySelector('displayName')?.textContent ||
+        cluster.querySelector('label')?.textContent ||
+        ''
+    ).trim();
+}
+
+function normalizeFieldName(name) {
+    return String(name || '').replace(/\s+/g, '');
+}
+
+/** 後続マスター選択クラスターのカスタムマスターから、フィールド番号 → フィールド名 */
+function collectSucceedingMasterFields(cluster) {
+    const byNo = new Map();
+    if (!cluster) return byNo;
+    const ucm = cluster.querySelector('userCustomMaster');
+    if (ucm) {
+        ucm.querySelectorAll('targetCluster').forEach((tc) => {
+            const no = (tc.querySelector('targetField')?.textContent || '').trim();
+            const name = (tc.querySelector('targetFieldName')?.textContent || '').trim();
+            if (no !== '' && name) byNo.set(no, name);
+        });
+    }
+    const params = cluster.querySelector('inputParameters')?.textContent || '';
+    const fieldNo = extractParameter(params, 'MasterFieldNo');
+    const fieldName = extractParameter(params, 'MasterFieldName');
+    if (fieldNo && fieldName && !byNo.has(fieldNo)) byNo.set(fieldNo, fieldName);
+    return byNo;
+}
+
+/**
+ * customMasterSearchField は帳票クラスターIDではなく、
+ * 後続（マスター選択）クラスターが参照するカスタムマスターのフィールド番号。
+ * 表示はマスター側のフィールド名を使う。
+ */
+export function resolveCustomMasterSearchFieldName(doc, network, fieldId, fallbackSheetIndex = 0) {
+    if (!doc || !network) return '';
+    const nextSheetNo = network.querySelector('nextSheetNo')?.textContent || '';
+    const nextClusterId = network.querySelector('nextClusterId')?.textContent || '';
+    const prevSheetNo = network.querySelector('prevSheetNo')?.textContent || nextSheetNo;
+    const prevClusterId = network.querySelector('prevClusterId')?.textContent || '';
+    const nextCluster = findClusterBySheetAndId(doc, nextSheetNo, nextClusterId, fallbackSheetIndex);
+    const prevCluster = findClusterBySheetAndId(doc, prevSheetNo, prevClusterId, fallbackSheetIndex);
+    const prevName = getClusterLabel(prevCluster);
+    const masterFields = collectSucceedingMasterFields(nextCluster);
+    const raw = String(fieldId ?? '').trim();
+    if (raw === '') return '';
+
+    // 0 はレコードバリュー（Designer の「親バリュー」）。先行クラスター名ではない
+    if (raw === '0') return masterFields.get('0') || '親バリュー';
+
+    // -1 はレコードキー。親子に targetField=-1 があればその名称、なければ先行クラスター名
+    if (raw === '-1') {
+        if (masterFields.has('-1')) return masterFields.get('-1');
+        for (const name of masterFields.values()) {
+            if (prevName && normalizeFieldName(name) === normalizeFieldName(prevName)) return name;
+        }
+        return prevName || 'レコードキー';
+    }
+
+    if (masterFields.has(raw)) return masterFields.get(raw);
+    return '';
+}
+
+export function formatCustomMasterSearchField(raw, fieldName) {
+    if (fieldName) return fieldName;
+    if (!isCustomMasterSearchFieldEnabled(raw)) return 'なし';
+    return `フィールド${String(raw).trim()}`;
+}
+
+export function resolveCustomMasterSearchFieldInfo(network, doc, fallbackSheetIndex = 0) {
+    const raw = (network.querySelector('customMasterSearchField')?.textContent ?? '').trim();
+    const fieldName = resolveCustomMasterSearchFieldName(doc, network, raw, fallbackSheetIndex);
+    const enabled = isCustomMasterSearchFieldEnabled(raw) || fieldName !== '';
+    return {
+        raw,
+        enabled,
+        fieldName,
+        display: formatCustomMasterSearchField(raw, fieldName),
+    };
+}
+
+/** 後続マスターのフィールド名称で比較 */
+export function customMasterSearchFieldsDiffer(info1, info2) {
+    return normalizeFieldName(info1.display) !== normalizeFieldName(info2.display);
+}
+
 /**
  * 遷移（シート番号・クラスターIDの組）が一致する network を返す。XML内の並び順に依存しない。
  */
@@ -171,6 +305,9 @@ export function checkNetworkDifference(network, index, context = {}) {
     const valueLinks1 = network1.querySelectorAll('valueLinks valueLink');
     const valueLinks2 = network2.querySelectorAll('valueLinks valueLink');
 
+    const cmSearch1 = resolveCustomMasterSearchFieldInfo(network1, doc1, currentSheetIndex);
+    const cmSearch2 = resolveCustomMasterSearchFieldInfo(network2, doc2, currentSheetIndex);
+
     const prevSheetDiff = prevSheetNo1 !== prevSheetNo2;
     const prevClusterDiff = prevClusterId1 !== prevClusterId2;
     const nextSheetDiff = nextSheetNo1 !== nextSheetNo2;
@@ -182,10 +319,12 @@ export function checkNetworkDifference(network, index, context = {}) {
     const nextAutoInputEditDiff = nextAutoInputEdit1 !== nextAutoInputEdit2;
     const noNeedToFillOutDiff = noNeedToFillOut1 !== noNeedToFillOut2;
     const valueLinksDiff = valueLinksSemanticallyDiffer(valueLinks1, valueLinks2);
+    const customMasterSearchFieldDiff = customMasterSearchFieldsDiffer(cmSearch1, cmSearch2);
 
     const hasDifference = prevSheetDiff || prevClusterDiff || nextSheetDiff || nextClusterDiff ||
         skipDiff || conditionDiff || nextAutoInputStartDiff || nextAutoInputDiff ||
-        nextAutoInputEditDiff || noNeedToFillOutDiff || valueLinksDiff;
+        nextAutoInputEditDiff || noNeedToFillOutDiff || valueLinksDiff ||
+        customMasterSearchFieldDiff;
 
     console.log(`checkNetworkDifference: ネットワーク${currentNetworkId ? 'ID ' + currentNetworkId : 'index ' + index} - 差分判定結果:`, {
         networkId: currentNetworkId || `index_${index}`,
@@ -194,6 +333,11 @@ export function checkNetworkDifference(network, index, context = {}) {
         skip: { ref: skip1, up: skip2, diff: skipDiff },
         condition: { ref: condition1, up: condition2, diff: conditionDiff },
         valueLinks: { ref: valueLinks1.length, up: valueLinks2.length, diff: valueLinksDiff },
+        customMasterSearchField: {
+            ref: cmSearch1.display,
+            up: cmSearch2.display,
+            diff: customMasterSearchFieldDiff
+        },
         hasDifference: hasDifference
     });
 
@@ -227,39 +371,44 @@ export function formatCondition(condition) {
 export function getNetworkDifferenceDetails(network, index, context = {}) {
     const { xmlData1, xmlData2, currentSheetIndex = 0 } = context;
 
+    // 比較前（基準XMLのみ）でも先行・後続などの設定内容を返す
     if (!xmlData1 || !xmlData2) {
+        const sourceXml = xmlData1 || xmlData2;
         const prevClusterId = network.querySelector('prevClusterId')?.textContent || '';
         const nextClusterId = network.querySelector('nextClusterId')?.textContent || '';
         const skip = network.querySelector('skip')?.textContent || '';
         const condition = network.querySelector('condition')?.textContent || '';
+        const valueLinksCount = network.querySelectorAll('valueLinks valueLink').length;
 
         let prevClusterName = '';
         let nextClusterName = '';
-        if (xmlData2) {
+        let customMasterSearchFieldFormatted = 'なし';
+        if (sourceXml) {
             const parser = new DOMParser();
-            const doc2 = parser.parseFromString(xmlData2, 'text/xml');
-            const getClusterName = (doc, clusterId) => {
+            const doc = parser.parseFromString(sourceXml, 'text/xml');
+            const getClusterName = (clusterId) => {
                 if (!clusterId) return '';
-                const clusterIndex = parseInt(clusterId);
+                const clusterIndex = parseInt(clusterId, 10);
                 if (isNaN(clusterIndex)) return '';
                 const sheets = doc.querySelectorAll('sheets sheet');
-                if (sheets.length === 0) return '';
                 const sheet = sheets[currentSheetIndex];
+                if (!sheet) return '';
                 const clusters = sheet.querySelectorAll('clusters cluster');
-                if (clusterIndex >= 0 && clusterIndex < clusters.length) {
-                    const cluster = clusters[clusterIndex];
-                    return cluster.querySelector('displayName')?.textContent ||
-                        cluster.querySelector('label')?.textContent ||
-                        cluster.querySelector('clusterName')?.textContent ||
-                        cluster.querySelector('name')?.textContent || '';
-                }
-                return '';
+                if (clusterIndex < 0 || clusterIndex >= clusters.length) return '';
+                const cluster = clusters[clusterIndex];
+                return cluster.querySelector('displayName')?.textContent ||
+                    cluster.querySelector('label')?.textContent ||
+                    cluster.querySelector('clusterName')?.textContent ||
+                    cluster.querySelector('name')?.textContent || '';
             };
-            prevClusterName = getClusterName(doc2, prevClusterId);
-            nextClusterName = getClusterName(doc2, nextClusterId);
+            prevClusterName = getClusterName(prevClusterId);
+            nextClusterName = getClusterName(nextClusterId);
+            const cmSearch = resolveCustomMasterSearchFieldInfo(network, doc, currentSheetIndex);
+            customMasterSearchFieldFormatted = cmSearch.display || 'なし';
         }
 
         return {
+            previewOnly: true,
             index: index,
             prevClusterId: prevClusterId,
             prevClusterName: prevClusterName,
@@ -269,7 +418,20 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
             skipFormatted: formatSkip(skip),
             condition: condition,
             conditionFormatted: formatCondition(condition),
-            valueLinksCount: network.querySelectorAll('valueLinks valueLink').length
+            valueLinksCount: valueLinksCount,
+            customMasterSearchFieldFormatted: customMasterSearchFieldFormatted,
+            ref_prevClusterId: prevClusterId,
+            ref_prevClusterName: prevClusterName,
+            ref_nextClusterId: nextClusterId,
+            ref_nextClusterName: nextClusterName,
+            ref_skip: skip,
+            ref_skipFormatted: formatSkip(skip),
+            ref_condition: condition,
+            ref_conditionFormatted: formatCondition(condition),
+            ref_valueLinksCount: valueLinksCount,
+            ref_customMasterSearchFieldFormatted: customMasterSearchFieldFormatted,
+            hasDifferences: false,
+            differences: []
         };
     }
 
@@ -479,6 +641,14 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
         differences.push(`必須入力設定: ${noNeed1} → ${noNeed2}`);
     }
 
+    const cmSearch1 = resolveCustomMasterSearchFieldInfo(network1, doc1, currentSheetIndex);
+    const cmSearch2 = resolveCustomMasterSearchFieldInfo(network2, doc2, currentSheetIndex);
+    if (customMasterSearchFieldsDiffer(cmSearch1, cmSearch2)) {
+        differences.push(
+            `マスター選択デフォルト検索値設定: ${cmSearch1.display} → ${cmSearch2.display}`
+        );
+    }
+
     return {
         index: index,
         networkId: currentNetworkId || `index_${index}`,
@@ -509,7 +679,11 @@ export function getNetworkDifferenceDetails(network, index, context = {}) {
         nextAutoInputStart: nextAutoInputStart2,
         nextAutoInput: nextAutoInput2,
         nextAutoInputEdit: nextAutoInputEdit2,
-        noNeedToFillOut: noNeedToFillOut2
+        noNeedToFillOut: noNeedToFillOut2,
+        ref_customMasterSearchField: cmSearch1.raw,
+        ref_customMasterSearchFieldFormatted: cmSearch1.display,
+        customMasterSearchField: cmSearch2.raw,
+        customMasterSearchFieldFormatted: cmSearch2.display
     };
 }
 

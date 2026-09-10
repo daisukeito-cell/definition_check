@@ -1,7 +1,7 @@
 import './modules/analytics.js';
 import { initSetupCheckBanner, goToSetupGuide, closeSetupCheckBanner } from './modules/setup-banner.js';
 import { initAppVersionUI } from './modules/version-ui.js';
-import { initOnboardingWelcome } from './modules/onboarding-welcome.js';
+import { initOnboardingWelcome, openOnboardingWelcome } from './modules/onboarding-welcome.js';
 import { initTroubleGuideUI } from './modules/trouble-guide-ui.js';
 import {
     playVideo,
@@ -13,6 +13,8 @@ import {
 const STEP_TO_CHECK_QUERY = {
     step1: 'step1',
     step2: 'step2',
+    step3: 'step3',
+    step4: 'step4',
 };
 
 function updateCheckPageLinks() {
@@ -33,17 +35,18 @@ function bindPracticeGuideModal() {
     if (!btn || !modal || !body) return;
 
     const content = `
-            <p class="tool-guide-lead">このページでは、帳票定義作成のハンズオン演習を進めます。作業ステップごとに PDF・動画・演習ファイルを用意しています。</p>
+            <p class="tool-guide-lead">このページでは、帳票定義作成のハンズオン演習を進めます。帳票づくりの工程（Excel → 定義作成 → 公開 → アプリ）を、<strong>演習の STEP.1〜STEP.4</strong> に分けて練習します。各 STEP に PDF・動画・演習ファイルを用意しています。</p>
 
             <h4 class="tool-guide-section-title"><span class="tool-guide-icon" aria-hidden="true">→</span> おすすめの進め方</h4>
             <ol class="tool-guide-steps">
-                <li><span class="tool-guide-step-num">1</span> 作業するステップ（STEP.1 / STEP.2）を選ぶ</li>
+                <li><span class="tool-guide-step-num">1</span> 演習の STEP（STEP.1〜STEP.4）を選ぶ</li>
                 <li><span class="tool-guide-step-num">2</span> 作業の流れ（PDF）で全体像を確認する</li>
                 <li><span class="tool-guide-step-num">3</span> 動画を見ながら、演習用 Excel をダウンロードして操作する</li>
                 <li><span class="tool-guide-step-num">4</span> ConMas Designer に取り込み、定義を編集して公開する</li>
                 <li><span class="tool-guide-step-num">5</span> 必要に応じて i-Reporter アプリで入力・動作確認する</li>
             </ol>
             <p class="tool-guide-lead">ここまで問題なければ一区切りです。エラー・公開不可・差分の特定が必要なときだけ、<a href="/check.html">定義チェック</a>をご利用ください。</p>
+            <p class="tool-guide-lead">帳票づくりの工程図は、<button type="button" class="tool-guide-inline-btn" id="onboardingReopenFromGuide">初めての案内</button>からいつでもやり直せます。</p>
         `;
 
     function openModal() {
@@ -61,6 +64,12 @@ function bindPracticeGuideModal() {
     btn.addEventListener('click', openModal);
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     modal.addEventListener('click', closeModal);
+    body.addEventListener('click', (e) => {
+        const reopen = e.target.closest('#onboardingReopenFromGuide');
+        if (!reopen) return;
+        modal.style.display = 'none';
+        openOnboardingWelcome({ showPurpose: true });
+    });
     const inner = modal.querySelector('.tool-guide-modal-content');
     if (inner) inner.addEventListener('click', (e) => e.stopPropagation());
 
@@ -75,6 +84,11 @@ function bindPracticeGuideModal() {
 }
 
 function bindPracticeUi() {
+    const onboardingReopenBtn = document.getElementById('onboardingReopenBtn');
+    onboardingReopenBtn?.addEventListener('click', () => {
+        openOnboardingWelcome({ showPurpose: true });
+    });
+
     const setupGuideBtn = document.getElementById('setupCheckGuideBtn');
     if (setupGuideBtn) setupGuideBtn.addEventListener('click', goToSetupGuide);
 

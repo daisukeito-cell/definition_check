@@ -2,6 +2,10 @@
  * カーボンコピー設定の抽出・比較
  */
 
+function formatClusterCode(sheetNo1Based, clusterIndex) {
+    return `S${sheetNo1Based}C${clusterIndex}`;
+}
+
 export function formatCarbonCopyEdit(edit) {
     if (edit === '0') return '編集不可';
     if (edit === '1') return '編集可';
@@ -46,8 +50,8 @@ export function extractCarbonCopyInfo(cluster, sourceIndex0, sheetNo1Based) {
         targetIndex0,
         edit,
         editLabel: formatCarbonCopyEdit(edit),
-        routeLabel: `${sourceIndex0}→${targetIndex0}`,
-        targetLabel: `シート${sheetNo}・INDEX ${targetIndex0}`,
+        routeLabel: `${formatClusterCode(sheetNo1Based, sourceIndex0)}→${formatClusterCode(sheetNo, targetIndex0)}`,
+        targetLabel: formatClusterCode(sheetNo, targetIndex0),
     };
 }
 
@@ -118,8 +122,8 @@ export function buildCarbonCopyDetailData(clusterIndex, clusters1, clusters2, sh
     const isTarget1 = sources1.length > 0;
     const isTarget2 = sources2.length > 0;
 
-    const incomingRef = sources1.map((s) => `INDEX ${s.sourceIndex0}`).join(', ') || 'なし';
-    const incomingComp = sources2.map((s) => `INDEX ${s.sourceIndex0}`).join(', ') || 'なし';
+    const incomingRef = sources1.map((s) => formatClusterCode(sheetNo1Based, s.sourceIndex0)).join(', ') || 'なし';
+    const incomingComp = sources2.map((s) => formatClusterCode(sheetNo1Based, s.sourceIndex0)).join(', ') || 'なし';
     const incomingMatch = incomingRef === incomingComp;
 
     const rows = [
@@ -136,9 +140,9 @@ export function buildCarbonCopyDetailData(clusterIndex, clusters1, clusters2, sh
             match: compareMode ? info1.hasSetting === info2.hasSetting : true,
         },
         {
-            label: 'コピー元 INDEX',
-            ref: isSource1 ? String(clusterIndex) : (isTarget1 ? incomingRef : '—'),
-            comp: compareMode ? (isSource2 ? String(clusterIndex) : (isTarget2 ? incomingComp : '—')) : null,
+            label: 'コピー元',
+            ref: isSource1 ? formatClusterCode(sheetNo1Based, clusterIndex) : (isTarget1 ? incomingRef : '—'),
+            comp: compareMode ? (isSource2 ? formatClusterCode(sheetNo1Based, clusterIndex) : (isTarget2 ? incomingComp : '—')) : null,
             match: compareMode
                 ? (isSource1 === isSource2 &&
                   (isSource1 ? true : incomingRef === incomingComp))

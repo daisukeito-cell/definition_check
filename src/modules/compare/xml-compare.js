@@ -1,5 +1,10 @@
-import { formatNextAutoInputStart } from './network-diff.js';
+import {
+    formatNextAutoInputStart,
+    resolveCustomMasterSearchFieldInfo,
+    customMasterSearchFieldsDiffer
+} from './network-diff.js';
 import { compareDefInfo } from './def-info-diff.js';
+import { compareCustomMaster } from './custom-master-diff.js';
 import {
     getClusterTypeJapanese,
     extractParameter,
@@ -82,7 +87,7 @@ function buildValueLinkMapByParent(valueLinkNodes) {
     return map;
 }
 
-function compareNetworkFieldsPaired(network1, network2, edgeDesc, result) {
+function compareNetworkFieldsPaired(network1, network2, edgeDesc, result, doc1, doc2) {
     const skip1 = network1.querySelector('skip')?.textContent;
     const skip2 = network2.querySelector('skip')?.textContent;
     const condition1 = network1.querySelector('condition')?.textContent;
@@ -168,6 +173,20 @@ function compareNetworkFieldsPaired(network1, network2, edgeDesc, result) {
             details: {
                 ref: noNeedToFillOut1 || '未設定',
                 up: noNeedToFillOut2 || '未設定'
+            }
+        });
+    }
+
+    const cmSearch1 = resolveCustomMasterSearchFieldInfo(network1, doc1);
+    const cmSearch2 = resolveCustomMasterSearchFieldInfo(network2, doc2);
+    if (customMasterSearchFieldsDiffer(cmSearch1, cmSearch2)) {
+        result.differences.push({
+            type: 'network',
+            category: 'customMasterSearchField',
+            description: `${edgeDesc}: マスター選択デフォルト検索値設定が異なります`,
+            details: {
+                ref: cmSearch1.display,
+                up: cmSearch2.display
             }
         });
     }
@@ -363,8 +382,8 @@ export function performXmlComparison(xml1, xml2, context = {}) {
         // 分割コピーの比較
         compareDividedCopy(doc1, doc2, result);
 
-        // ユーザーカスタムマスターの比較
-        compareUserCustomMaster(doc1, doc2, result);
+        // ユーザーカスタムマスターの比較（親子関係含む）
+        compareCustomMaster(doc1, doc2, result);
 
         // 入力パラメータの詳細比較（旧UI では show_parameters と同一IDだった）
         if (isXmlCompareOptionOn('show_parameters')) {
@@ -591,7 +610,7 @@ function compareNetworksAndValueLinks(doc1, doc2, result) {
             continue;
         }
 
-        compareNetworkFieldsPaired(network1, network2, edgeDesc, result);
+        compareNetworkFieldsPaired(network1, network2, edgeDesc, result, doc1, doc2);
         compareValueLinksForEdge(network1, network2, edgeDesc, result);
     }
 
@@ -976,78 +995,6 @@ function compareDividedCopy(doc1, doc2, result) {
                     details: {
                         ref: hasDivided1 ? '設定あり' : '設定なし',
                         up: hasDivided2 ? '設定あり' : '設定なし'
-                    }
-                });
-            }
-        }
-    }
-}
-
-/**
- * ユーザーカスタムマスターの比較
- * @param {Document} doc1 - 基準XMLドキュメント
- * @param {Document} doc2 - 比較XMLドキュメント
- * @param {Object} result - 比較結果オブジェクト
- */
-function compareUserCustomMaster(doc1, doc2, result) {
-    const clusters1 = doc1.querySelectorAll('clusters cluster');
-    const clusters2 = doc2.querySelectorAll('clusters cluster');
-    const maxClusters = Math.max(clusters1.length, clusters2.length);
-    
-    for (let i = 0; i < maxClusters; i++) {
-        const cluster1 = clusters1[i];
-        const cluster2 = clusters2[i];
-        
-        if (!cluster1 || !cluster2) continue;
-        
-        const userCustomMaster1 = cluster1.querySelector('userCustomMaster');
-        const userCustomMaster2 = cluster2.querySelector('userCustomMaster');
-        
-        if (userCustomMaster1 && userCustomMaster2) {
-            // マスターテーブルIDの比較
-            const masterTableId1 = userCustomMaster1.querySelector('masterTableId')?.textContent || '';
-            const masterTableId2 = userCustomMaster2.querySelector('masterTableId')?.textContent || '';
-            
-            if (masterTableId1 !== masterTableId2) {
-                result.differences.push({
-                    type: 'userCustomMaster',
-                    category: 'masterTableId',
-                    description: `クラスター${i + 1}: ユーザーカスタムマスターのテーブルIDが異なります`,
-                    details: {
-                        ref: masterTableId1 || '未設定',
-                        up: masterTableId2 || '未設定'
-                    }
-                });
-            }
-            
-            // マスターキーの比較
-            const masterKey1 = userCustomMaster1.querySelector('masterKey')?.textContent || '';
-            const masterKey2 = userCustomMaster2.querySelector('masterKey')?.textContent || '';
-            
-            if (masterKey1 !== masterKey2) {
-                result.differences.push({
-                    type: 'userCustomMaster',
-                    category: 'masterKey',
-                    description: `クラスター${i + 1}: ユーザーカスタムマスターのキーが異なります`,
-                    details: {
-                        ref: masterKey1 || '未設定',
-                        up: masterKey2 || '未設定'
-                    }
-                });
-            }
-        } else if (userCustomMaster1 || userCustomMaster2) {
-            // 片方だけにユーザーカスタムマスターがある場合
-            const hasMaster1 = userCustomMaster1 && (userCustomMaster1.querySelector('masterTableId')?.textContent || userCustomMaster1.querySelector('masterKey')?.textContent);
-            const hasMaster2 = userCustomMaster2 && (userCustomMaster2.querySelector('masterTableId')?.textContent || userCustomMaster2.querySelector('masterKey')?.textContent);
-            
-            if (hasMaster1 !== hasMaster2) {
-                result.differences.push({
-                    type: 'userCustomMaster',
-                    category: 'existence',
-                    description: `クラスター${i + 1}: ユーザーカスタムマスターの設定有無が異なります`,
-                    details: {
-                        ref: hasMaster1 ? '設定あり' : '設定なし',
-                        up: hasMaster2 ? '設定あり' : '設定なし'
                     }
                 });
             }

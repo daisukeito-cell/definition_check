@@ -15,7 +15,7 @@
         </div>
         <div class="header-right">
             <div class="header-title">演習ルーム</div>
-            <button type="button" class="app-version-badge" id="appVersionBadge">Ver 1.0.0</button>
+            <button type="button" class="app-version-badge" id="appVersionBadge">Ver 1.1.0</button>
         </div>
     </div>
 
@@ -30,6 +30,10 @@
                 <button type="button" class="setup-check-btn" id="practiceGuideBannerBtn">
                     <span class="setup-check-btn-icon">📖</span>
                     演習の進め方
+                </button>
+                <button type="button" class="setup-check-btn" id="onboardingReopenBtn">
+                    <span class="setup-check-btn-icon">👋</span>
+                    初めての案内
                 </button>
                 <a href="https://cimtops.gitbook.io/video-contents" target="_blank" rel="noopener noreferrer" class="setup-check-btn setup-check-btn--link setup-check-btn--outline">🎬 ショート動画講習会</a>
             </div>
@@ -64,17 +68,21 @@
                     
                     <div class="download-section">
                         <div class="download-title">📁 ここで使用するファイル</div>
-                        <a href="Material/演習用定義.xlsx" download="演習用定義.xlsx" class="download-link" id="downloadLink">
-                            <span class="download-icon">⬇️</span>
-                            演習用定義.xlsx
-                        </a>
+                        <div id="downloadLinks" class="download-links">
+                            <a href="Material/演習用定義.xlsx" download="演習用定義.xlsx" class="download-link">
+                                <span class="download-icon">⬇️</span>
+                                演習用定義.xlsx
+                            </a>
+                        </div>
                     </div>
                 </div>
                 <div class="video-list">
-                    <label for="videoStepSelect" class="video-step-label">作業するステップ</label>
-                    <select id="videoStepSelect" class="video-step-select" aria-label="作業するステップを選択">
+                    <label for="videoStepSelect" class="video-step-label">演習の STEP</label>
+                    <select id="videoStepSelect" class="video-step-select" aria-label="演習の STEP を選択">
                         <option value="step1">STEP.1 帳票定義の作成</option>
                         <option value="step2">STEP.2 帳票定義の更新</option>
+                        <option value="step3">STEP.3 カスタムマスターの設定</option>
+                        <option value="step4">STEP.4 カスタムマスターの設定（応用）</option>
                     </select>
                     <a href="Material/Def_Check_1.pdf" target="_blank" rel="noopener noreferrer" class="step-pdf-btn" id="videoStepPdfBtn">📄 STEP.1 の作業の流れ（PDF）</a>
                     <div class="video-list-title">📋 動画一覧</div>
@@ -138,48 +146,48 @@
                     <h3 class="onboarding-welcome-subtitle onboarding-welcome-subtitle--accent">このページの目的</h3>
                     <div class="onboarding-welcome-purpose">
                         <div class="onboarding-purpose-intro">
-                            <p class="onboarding-purpose-intro-text">紙で運用していた帳票を電子化し、帳票定義の作成から公開、i-Reporterアプリで入力するまでをつなげるための準備に慣れることが、このトレーニングルームのねらいです。下の図は、その帳票定義作成までの流れの全体像です。</p>
+                            <p class="onboarding-purpose-intro-text">紙で運用していた帳票を電子化し、帳票定義の作成から公開、i-Reporterアプリで入力するまでをつなげるための準備に慣れることが、このトレーニングルームのねらいです。下の図は、帳票を現場で使うまでの<strong>工程</strong>です。演習では、この工程を <strong>STEP.1〜STEP.4</strong> という別の課題単位に分けて練習します。</p>
                         </div>
                         <figure class="onboarding-purpose-figure">
                             <img
                                 src="Material/form_definition_flow.png"
                                 loading="lazy"
                                 decoding="async"
-                                alt="帳票定義作成までの流れ。手順は左から、Excelファイルの準備、帳票定義の作成、帳票定義の公開、i-Reporterアプリの操作の4段階。"
+                                alt="帳票づくりの工程。左から、Excelファイルの準備、帳票定義の作成、帳票定義の公開、i-Reporterアプリの操作の4工程。"
                             />
                         </figure>
-                        <p class="onboarding-welcome-purpose-lead"><span class="onboarding-flow-heading">各ステップの内容（図に対応）</span></p>
+                        <p class="onboarding-welcome-purpose-lead"><span class="onboarding-flow-heading">帳票づくりの工程（図の左から順）</span></p>
                         <ol class="onboarding-welcome-list onboarding-welcome-list--flow">
                             <li>
-                                <span class="onboarding-flow-step">1</span>
+                                <span class="onboarding-flow-step">工程1</span>
                                 <span class="onboarding-flow-text">
                                     <strong>Excelファイルの準備</strong>
                                     <span class="onboarding-flow-detail">レイアウトの設定、クラスターの設定</span>
                                 </span>
                             </li>
                             <li>
-                                <span class="onboarding-flow-step">2</span>
+                                <span class="onboarding-flow-step">工程2</span>
                                 <span class="onboarding-flow-text">
                                     <strong>帳票定義の作成</strong>（ConMas Designer）
                                     <span class="onboarding-flow-detail">選択項目の作成、入力順・入力制限の設定、表示方法の変更など</span>
                                 </span>
                             </li>
                             <li>
-                                <span class="onboarding-flow-step">3</span>
+                                <span class="onboarding-flow-step">工程3</span>
                                 <span class="onboarding-flow-text">
                                     <strong>帳票定義の公開</strong>
                                     <span class="onboarding-flow-detail">定義をサーバーに公開し、利用できる状態にする</span>
                                 </span>
                             </li>
                             <li>
-                                <span class="onboarding-flow-step">4</span>
+                                <span class="onboarding-flow-step">工程4</span>
                                 <span class="onboarding-flow-text">
                                     <strong>i-Reporterアプリの操作</strong>
                                     <span class="onboarding-flow-detail">入力帳票の作成・確認</span>
                                 </span>
                             </li>
                         </ol>
-                        <p class="onboarding-purpose-note">動画・演習ファイルで手順を確認しながら、上記の流れを練習できます。XMLの比較確認は、別画面の「定義チェック」から行えます。端末へのインストールは、別画面の手順ガイドから進められます。</p>
+                        <p class="onboarding-purpose-note">メイン画面では、演習の <strong>STEP.1〜STEP.4</strong> を選んで練習します（工程1〜4とは別の区切りです）。動画・演習ファイルで手順を確認できます。XMLの比較確認は、別画面の「定義チェック」から行えます。</p>
                     </div>
                 </div>
 

@@ -17,7 +17,17 @@ async function copyDir(src, dest) {
     if (entry.isDirectory()) {
       await copyDir(srcPath, destPath);
     } else if (entry.isFile()) {
-      await copyFile(srcPath, destPath);
+      // Word/Excel が開いているときの一時ファイルはコピーしない
+      if (entry.name.startsWith('~$') || entry.name.startsWith('~') || /\.(tmp|TMP)$/.test(entry.name)) continue;
+      try {
+        await copyFile(srcPath, destPath);
+      } catch (err) {
+        // 一時ファイルのロックで全体を止めない
+        if (err && (err.code === 'EBUSY' || err.code === 'EPERM')) {
+          continue;
+        }
+        throw err;
+      }
     }
   }
 }

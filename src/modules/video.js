@@ -1,6 +1,7 @@
 import pdfjsLib from './pdf-worker.js';
 
 // YouTube動画IDのマッピング（限定公開URLの videoId を設定）
+// 文字列、または { id, start }（開始秒）
 const youtubeIdMap = {
   // 管理者用コンテンツ
   'manager-overview': '9eFVeeYbiJk',
@@ -16,11 +17,28 @@ const youtubeIdMap = {
   'excel-output': 'MZ1TAUnheQg',
   'excel-export': 'MZ1TAUnheQg', // 旧IDとの互換性のため
   'update-report': 'AIEXKa5x3R4',
-  'revision-up': 'AIEXKa5x3R4' // 旧IDとの互換性のため
+  'revision-up': 'AIEXKa5x3R4', // 旧IDとの互換性のため
+  // カスタムマスター
+  'custom-master-about': { id: 'oU63ylprym4', start: 122 },
+  'custom-master-create': 'kfS6f1H7fO8',
+  'custom-master-register': 'pXH1WOqTKSY',
+  'custom-master-settings': 'Nz0ib0b_5Lo',
+  'custom-master-input': 'YsjHoh1JWKY',
+  'custom-master-update': '9dgN-ixPJbo',
+  'custom-master-default-search': 'UI80bw2l4WI',
 };
 
-function getYoutubeEmbedUrl(videoId) {
-  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
+function resolveYoutubeEntry(entry) {
+  if (!entry) return null;
+  if (typeof entry === 'string') return { id: entry, start: 0 };
+  if (entry.id) return { id: entry.id, start: Number(entry.start) || 0 };
+  return null;
+}
+
+function getYoutubeEmbedUrl(videoId, start = 0) {
+  let url = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
+  if (start > 0) url += `&start=${start}`;
+  return url;
 }
 
 function getYoutubeThumbnailUrl(videoId) {
@@ -73,6 +91,9 @@ const VIDEO_STEPS = {
     referenceFile: 'Definition_check.xml',
     pdfHref: 'Material/Def_Check_1.pdf',
     pdfLabel: '📄 STEP.1 の作業の流れ（PDF）',
+    downloads: [
+      { href: 'Material/演習用定義.xlsx', label: '演習用定義.xlsx' },
+    ],
     videos: [
       { id: 'cluster-settings', title: 'クラスター設定' },
       { id: 'add-in-usage', title: 'add-inの使い方' },
@@ -83,9 +104,48 @@ const VIDEO_STEPS = {
     referenceFile: 'Definition_Complet.xml',
     pdfHref: 'Material/Def_Check_2.pdf',
     pdfLabel: '📄 STEP.2 の作業の流れ（PDF）',
+    downloads: [
+      { href: 'Material/演習用定義.xlsx', label: '演習用定義.xlsx' },
+    ],
     videos: [
       { id: 'excel-output', title: 'Excel定義出力' },
       { id: 'update-report', title: '帳票定義の更新' },
+    ],
+  },
+  step3: {
+    referenceFile: 'カスタムマスター演習.xml',
+    pdfHref: 'Material/Def_Check_3.pdf',
+    pdfLabel: '📄 STEP.3 の作業の流れ（PDF）',
+    downloads: [
+      { href: 'Material/カスタムマスター演習.xlsx', label: 'カスタムマスター演習.xlsx' },
+      { href: 'Material/CustomMasterInputSheet.xlsb', label: 'CustomMasterInputSheet.xlsb' },
+    ],
+    videos: [
+      { id: 'custom-master-about', title: 'カスタムマスターについて' },
+      { id: 'custom-master-create', title: 'カスタムマスターの作成' },
+      { id: 'custom-master-register', title: 'カスタムマスターの登録' },
+      { id: 'custom-master-settings', title: 'カスタムマスターの設定' },
+      { id: 'custom-master-input', title: 'カスタムマスターを使った入力' },
+    ],
+    // 必須手順ではないので本編一覧には出さず、必要なときだけ開ける
+    optionalVideos: [
+      {
+        id: 'custom-master-update',
+        title: 'カスタムマスターの更新',
+        summary: 'マスターを更新する場合（任意）',
+        note: 'すでに登録したマスターを直すときだけ見てください。',
+      },
+    ],
+  },
+  step4: {
+    referenceFile: 'カスタムマスター設定_応用版練習.xml',
+    pdfHref: 'Material/Def_Check_4.pdf',
+    pdfLabel: '📄 STEP.4 の作業の流れ（PDF）',
+    downloads: [
+      { href: 'Material/カスタムマスター設定_応用版練習.xlsx', label: 'カスタムマスター設定_応用版練習.xlsx' },
+    ],
+    videos: [
+      { id: 'custom-master-default-search', title: 'マスター選択デフォルト検索値設定' },
     ],
   },
 };
@@ -96,6 +156,34 @@ export function setReferenceFileHandler(handler) {
 
 export function setReferenceXmlSyncHandler(handler) {
   referenceXmlSyncHandler = handler;
+}
+
+/** STEPごとに「ここで使用するファイル」ボタンを並べる（1ファイル1ボタン） */
+function getStepDownloads(step) {
+  if (Array.isArray(step.downloads) && step.downloads.length) return step.downloads;
+  if (step.downloadHref) {
+    return [{ href: step.downloadHref, label: step.downloadLabel || 'ダウンロード' }];
+  }
+  return [];
+}
+
+function applyStepDownloads(step) {
+  const wrap = document.getElementById('downloadLinks');
+  const section = wrap?.closest('.download-section');
+  if (!wrap) return;
+  const items = getStepDownloads(step);
+  if (!items.length) {
+    wrap.innerHTML = '';
+    if (section) section.style.display = 'none';
+    return;
+  }
+  if (section) section.style.display = '';
+  wrap.innerHTML = items
+    .map(
+      (item) =>
+        `<a href="${item.href}" download="${item.label}" class="download-link"><span class="download-icon">⬇️</span>${item.label}</a>`
+    )
+    .join('');
 }
 
 function bindVideoItemClicks(container) {
@@ -118,16 +206,41 @@ function applyVideoStep(stepKey) {
   if (!step || !panel) return;
 
   if (pdfLink) {
-    pdfLink.href = step.pdfHref;
-    pdfLink.textContent = step.pdfLabel;
+    if (step.pdfHref) {
+      pdfLink.href = step.pdfHref;
+      pdfLink.textContent = step.pdfLabel;
+      pdfLink.style.display = '';
+    } else {
+      pdfLink.removeAttribute('href');
+      pdfLink.textContent = '';
+      pdfLink.style.display = 'none';
+    }
   }
 
-  panel.innerHTML = step.videos
+  applyStepDownloads(step);
+
+  const mainList = (step.videos || [])
     .map(
       (video) =>
         `<div class="video-item" role="listitem" data-video-id="${video.id}" data-video-title="${video.title}">${video.title}</div>`
     )
     .join('');
+
+  const optionalList = (step.optionalVideos || [])
+    .map((video) => {
+      const summary = video.summary || '必要な場合のみ（任意）';
+      const note = video.note
+        ? `<p class="video-optional-note">${video.note}</p>`
+        : '';
+      return `<details class="video-optional">
+        <summary>${summary}</summary>
+        ${note}
+        <div class="video-item video-item--optional" role="listitem" data-video-id="${video.id}" data-video-title="${video.title}">${video.title}</div>
+      </details>`;
+    })
+    .join('');
+
+  panel.innerHTML = mainList + optionalList;
 
   bindVideoItemClicks(panel);
 
@@ -177,12 +290,12 @@ export function playVideo() {
 
   if (!currentVideoId) {
     console.warn('currentVideoIdが設定されていません');
-    alert('作業ステップを選び、動画一覧から視聴する動画を選択してください。');
+    alert('演習の STEP を選び、動画一覧から視聴する動画を選択してください。');
     return;
   }
 
-  const youtubeId = youtubeIdMap[currentVideoId];
-  if (!youtubeId) {
+  const youtubeEntry = resolveYoutubeEntry(youtubeIdMap[currentVideoId]);
+  if (!youtubeEntry) {
     console.error('youtubeIdMapに動画IDが見つかりません:', currentVideoId, youtubeIdMap);
     alert('YouTube動画IDが未設定です。video.js の youtubeIdMap にIDを設定してください。');
     return;
@@ -203,7 +316,7 @@ export function playVideo() {
   videoPlayer.innerHTML = '';
 
   const iframe = document.createElement('iframe');
-  iframe.src = getYoutubeEmbedUrl(youtubeId);
+  iframe.src = getYoutubeEmbedUrl(youtubeEntry.id, youtubeEntry.start);
   iframe.title = 'YouTube video player';
   iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
   iframe.allowFullscreen = true;
@@ -254,7 +367,8 @@ export function selectVideo(videoId, title, isReferenceVideo = false, clickedEle
     thumbnailText.textContent = title;
   }
 
-  const youtubeId = youtubeIdMap[videoId];
+  const youtubeEntry = resolveYoutubeEntry(youtubeIdMap[videoId]);
+  const youtubeId = youtubeEntry?.id;
   const thumbnailJpg = thumbnailJpgMap[videoId];
   const thumbnailPdf = thumbnailPdfMap[videoId];
   const thumbnailImage = document.getElementById('videoThumbnailImage');

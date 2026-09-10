@@ -10,7 +10,7 @@
  * 6. FreeDraw - フリードロー
  * 7. Image - 画像
  * 8. Numeric - 数値
- * 9. InputNumeric - 数値入力
+ * 9. InputNumeric - 数値
  * 10. MCNCalculate - トグル集計
  * 11. MultipleChoiceNumber - トグル選択
  * 12. MultiSelect - 複数選択
@@ -34,7 +34,7 @@ export function getClusterTypeJapanese(type) {
         'FreeDraw': 'フリードロー',
         'Image': '画像',
         'Numeric': '数値',
-        'InputNumeric': '数値入力',
+        'InputNumeric': '数値',
         'MCNCalculate': 'トグル集計',
         'MultipleChoiceNumber': 'トグル選択',
         'MultiSelect': '複数選択',

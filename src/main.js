@@ -13,6 +13,7 @@ import {
     extractParameter,
     compareClusterSettings as compareClusterSettingsCore,
     getChoiceDifference as getChoiceDifferenceCore,
+    extractChoicesFromCluster,
     checkClusterDifference as checkClusterDifferenceCore,
     shouldShowRequiredComparison,
     shouldShowActionTypeComparison,
@@ -23,6 +24,7 @@ import {
 } from './modules/compare/cluster-diff.js';
 import { compareNetworkSettings as compareNetworkSettingsCore, checkNetworkDifference as checkNetworkDifferenceCore, getNetworkDifferenceDetails as getNetworkDifferenceDetailsCore, getNetworkPositionDifference as getNetworkPositionDifferenceCore, getNetworkRestrictionDifference as getNetworkRestrictionDifferenceCore } from './modules/compare/network-diff.js';
 import { buildDefInfoData } from './modules/compare/def-info-diff.js';
+import { buildCustomMasterData, buildCustomMasterClusterRow, getCustomMasterClusterVisual, buildRelationCompareRows, buildCustomMasterFamilyColorMap, getCustomMasterFamilyColor } from './modules/compare/custom-master-diff.js';
 import {
     extractCarbonCopyInfo,
     compareCarbonCopyInfo,
@@ -36,6 +38,7 @@ const TAB_BADGE_CONFIG = [
     { tabId: 'pdf-layout', stateKey: 'cluster' },
     { tabId: 'network-layout', stateKey: 'network' },
     { tabId: 'carbon-copy-layout', stateKey: 'carbonCopy' },
+    { tabId: 'custom-master-layout', stateKey: 'customMaster' },
     { tabId: 'def-info-layout', stateKey: 'defInfo' },
 ];
 
@@ -49,6 +52,7 @@ const TAB_SECTION_META = {
     'pdf-layout': { heading: '🔧 クラスター設定', color: '#ff9500' },
     'network-layout': { heading: '🔗 ネットワーク設定', color: '#007bff' },
     'carbon-copy-layout': { heading: '📑 カーボンコピー設定', color: '#007bff' },
+    'custom-master-layout': { heading: '📌 カスタムマスター', color: '#007bff' },
     'def-info-layout': { heading: '📋 帳票定義情報設定', color: '#007bff' },
 };
 
@@ -144,13 +148,15 @@ let file2 = null;
 
 /**
  * 基準XMLに対応するフォールバックPDF（XMLに埋め込み背景がない場合に public/Material から読込）
- * STEP.1 → Def_Check_1.pdf、STEP.2 → Def_Check_2.pdf
+ * STEP.1 → Def_Check_1.pdf、STEP.2 → Def_Check_2.pdf、STEP.3 → Def_Check_3.pdf、STEP.4 → Def_Check_4.pdf
  * @returns {string} ファイル名のみ
  */
 function getFallbackPdfFileName() {
     const name = file1?.name || '';
     if (name === 'Definition_Complet.xml') return 'Def_Check_2.pdf';
     if (name === 'Definition_check.xml') return 'Def_Check_1.pdf';
+    if (name === 'カスタムマスター演習.xml') return 'Def_Check_3.pdf';
+    if (name === 'カスタムマスター設定_応用版練習.xml') return 'Def_Check_4.pdf';
     return 'Def_Check_1.pdf';
 }
 
@@ -162,6 +168,92 @@ function getFallbackPdfPath() {
 // 基準XMLの配置先（public/xml）
 const REFERENCE_XML_BASE_URL = '/xml/';
 const REFERENCE_XML_MANIFEST_URL = '/xml/manifest.json';
+
+/** 演習ルームと同じ STEP 名。タブは今の STEP で見るものだけ出す */
+const CHECK_STEP_OPTIONS = [
+    {
+        key: 'step1',
+        file: 'Definition_check.xml',
+        label: 'STEP.1 帳票定義の作成',
+        tabs: ['pdf-layout', 'network-layout', 'def-info-layout'],
+    },
+    {
+        key: 'step2',
+        file: 'Definition_Complet.xml',
+        label: 'STEP.2 帳票定義の更新',
+        tabs: ['pdf-layout', 'network-layout', 'carbon-copy-layout', 'def-info-layout'],
+    },
+    {
+        key: 'step3',
+        file: 'カスタムマスター演習.xml',
+        label: 'STEP.3 カスタムマスターの設定',
+        tabs: ['pdf-layout', 'network-layout', 'carbon-copy-layout', 'custom-master-layout', 'def-info-layout'],
+    },
+    {
+        key: 'step4',
+        file: 'カスタムマスター設定_応用版練習.xml',
+        label: 'STEP.4 カスタムマスターの設定（応用）',
+        tabs: ['pdf-layout', 'network-layout', 'carbon-copy-layout', 'custom-master-layout', 'def-info-layout'],
+    },
+];
+
+const CHECK_STEP_QUERY_MAP = Object.fromEntries(
+    CHECK_STEP_OPTIONS.map((item) => [item.key, item.file])
+);
+
+const CHECK_LAYOUT_TAB_IDS = [
+    'pdf-layout',
+    'network-layout',
+    'carbon-copy-layout',
+    'custom-master-layout',
+    'def-info-layout',
+];
+
+function getCheckStepOption(filename) {
+    return CHECK_STEP_OPTIONS.find((item) => item.file === filename) || CHECK_STEP_OPTIONS[0];
+}
+
+function updateReferenceFileStepLabel(filename) {
+    const el = document.getElementById('referenceFileStepLabel');
+    if (!el) return;
+    el.textContent = filename ? getCheckStepOption(filename).label : '';
+}
+
+/** 今の STEP で使わないタブ（カーボンコピー・カスタムマスター等）を隠す */
+function applyCheckStepTabs(filename) {
+    const allowed = new Set(getCheckStepOption(filename).tabs);
+    CHECK_LAYOUT_TAB_IDS.forEach((tabId) => {
+        const btn = document.querySelector(`.tabs .tab[data-tab="${tabId}"]`);
+        if (btn) btn.style.display = allowed.has(tabId) ? '' : 'none';
+    });
+}
+
+function isCompareModeActive() {
+    return !!(xmlData1 && xmlData2);
+}
+
+/** 基準の閲覧と比較結果で、案内と凡例を切り替える */
+function updateLayoutModeUi() {
+    const comparing = isCompareModeActive();
+    document.body.classList.toggle('is-compare-mode', comparing);
+
+    const banner = document.getElementById('layoutModeBanner');
+    if (banner) {
+        if (!xmlData1) {
+            banner.hidden = true;
+        } else {
+            banner.hidden = false;
+            banner.classList.toggle('layout-mode-banner--preview', !comparing);
+            banner.classList.toggle('layout-mode-banner--compare', comparing);
+            banner.textContent = comparing
+                ? '比較結果を表示しています。色の違いは基準XMLとの差分です。'
+                : '基準定義の閲覧です。まだ比較していません。比較XMLをアップロードして「比較を開始」すると差分が出ます。';
+        }
+    }
+}
+
+/** 基準XMLの fetch が入れ違わないようにする（STEP切替・クエリ適用の競合対策） */
+let referenceXmlLoadSeq = 0;
 
 /** XMLアップロードの最大サイズ（5MB） */
 const MAX_XML_SIZE = 5 * 1024 * 1024;
@@ -180,6 +272,207 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function formatClusterCode(sheetNo1Based, clusterIndex) {
+    return `S${sheetNo1Based}C${clusterIndex}`;
+}
+
+/** ネットワーク詳細の先行・後続を S1C0（名称）の形で出す */
+function formatNetworkClusterLabel(id, name, sheetNo1Based = currentSheetIndex + 1) {
+    if (id == null || id === '') return 'なし';
+    if (id === '存在しない') return '存在しない';
+    const idx = parseInt(id, 10);
+    const code = Number.isFinite(idx) ? formatClusterCode(sheetNo1Based, idx) : String(id);
+    const label = String(name || '').trim();
+    return label ? `${code}（${label}）` : code;
+}
+
+function buildNetworkNodeHtml(index, centerX, centerY, name, extraClass = '', backgroundColor = '') {
+    const bg = backgroundColor ? `background:${backgroundColor};` : '';
+    return `
+        <div class="network-node ${extraClass}"
+             style="left:${centerX}px;top:${centerY}px;${bg}"
+             title="${escapeHtml(name)}">
+            ${formatClusterCode(currentSheetIndex + 1, index)}
+        </div>`;
+}
+
+function computeDualPanelMetrics(viewer, width1, height1, width2, height2, maxScale = 1.2) {
+    const outerPadding = 10;
+    const gap = 15;
+    const contentPadding = 5;
+    const viewerSize = getPdfViewerSize(viewer, 500, 600);
+    const availableWidth = Math.max((viewerSize.width - outerPadding * 2 - gap) / 2 - contentPadding * 2, 1);
+    const availableHeight = Math.max(viewerSize.height - outerPadding * 2 - contentPadding * 2, 1);
+    const maxWidth = Math.max(width1, width2);
+    const maxHeight = Math.max(height1, height2);
+    const scaleX = availableWidth / maxWidth;
+    const scaleY = availableHeight / maxHeight;
+    const optimalScale = normalizeLayoutScale(Math.min(scaleX, scaleY, maxScale), maxWidth, maxHeight);
+    const scaledWidth1 = width1 * optimalScale;
+    const scaledHeight1 = height1 * optimalScale;
+    const scaledWidth2 = width2 * optimalScale;
+    const scaledHeight2 = height2 * optimalScale;
+    return {
+        outerPadding,
+        gap,
+        contentPadding,
+        optimalScale,
+        scaledWidth1,
+        scaledHeight1,
+        scaledWidth2,
+        scaledHeight2,
+        containerWidthFinal: Math.max(scaledWidth1, scaledWidth2) + contentPadding * 2,
+        containerHeightFinal: Math.max(scaledHeight1, scaledHeight2) + contentPadding * 2,
+    };
+}
+
+function buildSheetBackgroundHtml(scaledWidth, scaledHeight, backgroundImage, canvasId, sheetBackgroundImage, rootBackgroundImage, pendingRenders) {
+    if (!backgroundImage || backgroundImage.length <= 100) return '';
+    const cleanedBg = backgroundImage.replace(/[\r\n\s\t]/g, '');
+    const isPdfData = cleanedBg.startsWith('JVBERi0') || cleanedBg.substring(0, 20).includes('PDF');
+    if (isPdfData) {
+        const useSheetSpecificPage = !sheetBackgroundImage && rootBackgroundImage;
+        pendingRenders.push({
+            base64: cleanedBg,
+            canvasId,
+            width: scaledWidth,
+            height: scaledHeight,
+            pageNumber: useSheetSpecificPage ? currentSheetIndex + 1 : 1,
+        });
+        return `
+            <div style="position:absolute;top:0;left:0;width:${scaledWidth}px;height:${scaledHeight}px;z-index:1;overflow:hidden;background:#fff;">
+                <canvas id="${canvasId}" style="width:100%;height:100%;display:block;"></canvas>
+            </div>`;
+    }
+    return `
+        <div style="
+            position:absolute;top:0;left:0;width:${scaledWidth}px;height:${scaledHeight}px;z-index:1;
+            background-image:url('data:image/png;base64,${cleanedBg}');
+            background-size:100% 100%;background-repeat:no-repeat;background-position:top left;
+        "></div>`;
+}
+
+function hexToRgba(hex, alpha) {
+    const raw = String(hex || '').replace('#', '');
+    if (raw.length !== 6) return `rgba(0, 123, 255, ${alpha})`;
+    const r = parseInt(raw.slice(0, 2), 16);
+    const g = parseInt(raw.slice(2, 4), 16);
+    const b = parseInt(raw.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function buildCustomMasterClusterOverlays(clusters, clusters1, clusters2, side, compareMode, optimalScale, sheetWidth, sheetHeight, sheetNo1Based, selectedIndex) {
+    const useCompare = compareMode && side === 'comp';
+    const visualClusters1 = clusters1;
+    const visualClusters2 = useCompare ? clusters2 : clusters1;
+    // 表示中シートの親子関係で色分け（親ごと・子は同色白抜き）
+    const familyColorMap = buildCustomMasterFamilyColorMap(clusters);
+    let html = '';
+
+    clusters.forEach((cluster, index) => {
+        const visualInfo = getCustomMasterClusterVisual(index, visualClusters1, visualClusters2, useCompare);
+        const { visual, isSource, isTarget, compare } = visualInfo;
+        const rawTop = cluster.querySelector('top')?.textContent || '0';
+        const rawLeft = cluster.querySelector('left')?.textContent || '0';
+        const rawRight = cluster.querySelector('right')?.textContent || '0';
+        const rawBottom = cluster.querySelector('bottom')?.textContent || '0';
+        const top = parseFloat(rawTop) * sheetHeight * optimalScale;
+        const left = parseFloat(rawLeft) * sheetWidth * optimalScale;
+        const clusterWidth = (parseFloat(rawRight) - parseFloat(rawLeft)) * sheetWidth * optimalScale;
+        const clusterHeight = (parseFloat(rawBottom) - parseFloat(rawTop)) * sheetHeight * optimalScale;
+        const clusterCode = formatClusterCode(sheetNo1Based, index);
+
+        const isDiff = useCompare && !compare.match;
+        const colorIndex = familyColorMap.get(index);
+        const familyColor = (isSource || isTarget)
+            ? getCustomMasterFamilyColor(colorIndex)
+            : null;
+        // 差分でも親ごとの色は残す（赤塗りで潰さない）。差分は枠＋「！」で示す
+        const familyRole = familyColor
+            ? (isSource ? 'family-source' : 'family-target')
+            : null;
+        const overlayVisual = familyRole || (isDiff ? 'diff' : visual);
+        const badgeVisual = familyRole || (isDiff ? 'diff' : visual);
+        const diffClass = isDiff ? ' has-diff' : '';
+
+        const overlayClass = `custom-master-overlay custom-master-overlay--${overlayVisual}${diffClass}`;
+        const badgeClass = `custom-master-badge custom-master-badge--${badgeVisual}`;
+        const roleTag = isSource
+            ? '<span class="custom-master-role-tag">親</span>'
+            : isTarget
+              ? '<span class="custom-master-role-tag">子</span>'
+              : '';
+        const diffMark = isDiff
+            ? `<span class="custom-master-diff-mark custom-master-diff-mark--${compare.hasRed ? 'red' : 'blue'}">!</span>`
+            : '';
+        const selectedClass = selectedIndex === index ? ' selected' : '';
+        const familyStyle = familyColor
+            ? `--cm-accent:${familyColor};--cm-fill:${hexToRgba(familyColor, 0.42)};`
+            : '';
+
+        html += `
+            <div class="${overlayClass}${selectedClass}"
+                 style="${familyStyle}top:${top}px;left:${left}px;width:${clusterWidth}px;height:${clusterHeight}px;"
+                 data-cluster-index="${index}"
+                 title="${clusterCode}${isSource ? '（親）' : isTarget ? '（子）' : ''}">
+                ${roleTag}
+                <span class="${badgeClass}">${clusterCode}</span>
+                ${diffMark}
+            </div>`;
+    });
+    return html;
+}
+
+function buildCarbonCopyClusterOverlays(clusters, clusters1, clusters2, side, compareMode, optimalScale, sheetWidth, sheetHeight, sheetNo1Based, selectedIndex) {
+    const useCompare = compareMode && side === 'comp';
+    const refClusters = clusters1;
+    const targetSetRef = buildTargetIndexSet(refClusters, sheetNo1Based);
+    const targetSetComp = buildTargetIndexSet(useCompare ? clusters2 : refClusters, sheetNo1Based);
+    let html = '';
+
+    clusters.forEach((cluster, index) => {
+        const refCluster = refClusters[index] || null;
+        const infoRef = extractCarbonCopyInfo(refCluster, index, sheetNo1Based);
+        const infoComp = extractCarbonCopyInfo(cluster, index, sheetNo1Based);
+        const compare = useCompare ? compareCarbonCopyInfo(infoRef, infoComp) : { match: true };
+        const isSource = useCompare ? infoComp.hasSetting : infoRef.hasSetting;
+        const isTarget = useCompare ? targetSetComp.has(index) : targetSetRef.has(index);
+        const visual = getCarbonCopyVisualState(compare, isSource, isTarget);
+
+        const rawTop = cluster.querySelector('top')?.textContent || '0';
+        const rawLeft = cluster.querySelector('left')?.textContent || '0';
+        const rawRight = cluster.querySelector('right')?.textContent || '0';
+        const rawBottom = cluster.querySelector('bottom')?.textContent || '0';
+        const top = parseFloat(rawTop) * sheetHeight * optimalScale;
+        const left = parseFloat(rawLeft) * sheetWidth * optimalScale;
+        const clusterWidth = (parseFloat(rawRight) - parseFloat(rawLeft)) * sheetWidth * optimalScale;
+        const clusterHeight = (parseFloat(rawBottom) - parseFloat(rawTop)) * sheetHeight * optimalScale;
+        const clusterCode = formatClusterCode(sheetNo1Based, index);
+        const overlayClass = `carbon-copy-overlay carbon-copy-overlay--${visual}`;
+        const badgeClass = `carbon-copy-badge carbon-copy-badge--${visual}`;
+        const roleTag = isSource && isTarget
+            ? '<span class="carbon-copy-role-tag">元・先</span>'
+            : isSource
+              ? '<span class="carbon-copy-role-tag">元</span>'
+              : isTarget
+                ? '<span class="carbon-copy-role-tag">先</span>'
+                : '';
+        const diffMark = useCompare && !compare.match ? '<span class="carbon-copy-diff-mark">!</span>' : '';
+        const selectedClass = selectedIndex === index ? ' selected' : '';
+
+        html += `
+            <div class="${overlayClass}${selectedClass}"
+                 style="top:${top}px;left:${left}px;width:${clusterWidth}px;height:${clusterHeight}px;"
+                 data-cluster-index="${index}"
+                 title="${clusterCode}">
+                ${roleTag}
+                <span class="${badgeClass}">${clusterCode}</span>
+                ${diffMark}
+            </div>`;
+    });
+    return html;
 }
 
 /**
@@ -203,6 +496,32 @@ function getClusterModalDisplayNote() {
         <div class="cluster-modal-display-note" style="margin-top: 1rem; padding: 0.75rem 1rem; background: #e8f4fc; border: 1px solid #b8daff; border-radius: 6px; font-size: 0.85rem; color: #004085;">
             💡 <strong>表示について</strong><br>
             XMLの値に <code>&lt;</code> <code>&gt;</code> <code>&amp;</code> などの記号が含まれる場合、セキュリティのため<strong>そのまま文字として</strong>表示しています。数式（例: x&lt;y）や「A&amp;B」のような表記がそのように見えても正常です。不具合ではありません。
+        </div>
+    `;
+}
+
+/** 比較前のクラスター詳細で選択肢を一覧表示する */
+function renderClusterPreviewChoices(choices) {
+    if (!choices.length) {
+        return `
+            <div class="cluster-basic-info" style="margin-top: 1rem;">
+                <h4>📝 選択肢</h4>
+                <p class="cluster-choice-empty">このクラスターに選択肢は設定されていません。</p>
+            </div>
+        `;
+    }
+    const blocks = choices.map((choice) => {
+        const valueText = String(choice.value ?? '').length > 0 ? escapeHtml(String(choice.value)) : '（空）';
+        const labelText = String(choice.label ?? '').length > 0 ? escapeHtml(String(choice.label)) : '（空）';
+        const selectedLine = choice.selected === 'true'
+            ? '<div class="cluster-choice-pair-lines">初期選択：あり</div>'
+            : '';
+        return `<div class="cluster-choice-block"><div class="cluster-choice-pair-lines">値：${valueText}<br>ラベル：${labelText}</div>${selectedLine}</div>`;
+    }).join('');
+    return `
+        <div class="cluster-basic-info" style="margin-top: 1rem;">
+            <h4>📝 選択肢（${choices.length}個）</h4>
+            <div class="cluster-choice-col-list">${blocks}</div>
         </div>
     `;
 }
@@ -310,6 +629,8 @@ let totalSheets = 1; // 総シート数
 function setReferenceXmlUi(filename, text) {
     xmlData1 = text;
     file1 = { name: filename, size: text.length };
+    const refSelect = document.getElementById('referenceXmlSelect');
+    if (refSelect) refSelect.dataset.loadedFile = filename;
     const info1 = document.getElementById('fileInfo1');
     if (info1) {
         info1.style.display = 'none';
@@ -321,15 +642,23 @@ function setReferenceXmlUi(filename, text) {
     }
     console.log('基準XML読み込み完了:', { filename, length: text.length });
     lastDefInfoData = null;
+    lastCustomMasterData = null;
+    xmlData2 = null;
     clearTabBadges();
+    updateReferenceFileStepLabel(filename);
+    applyCheckStepTabs(filename);
+    updateLayoutModeUi();
     // 基準選択時点でプレビュー画面を表示
     showReferencePreview();
     updateDefInfoLayout();
+    updateCustomMasterLayout();
 }
 
 let layoutRefreshToken = 0;
 let lastDefInfoData = null;
+let lastCustomMasterData = null;
 let selectedCarbonCopyIndex = null;
+let selectedCustomMasterIndex = null;
 
 /** 結果エリア表示直後は pdfViewer のサイズが 0 のことがあるため、描画はレイアウト確定後に行う */
 function scheduleLayoutRefresh() {
@@ -342,12 +671,14 @@ function scheduleLayoutRefresh() {
             const networkTab = document.getElementById('network-layoutTab');
             const defInfoTab = document.getElementById('def-info-layoutTab');
             const carbonCopyTab = document.getElementById('carbon-copy-layoutTab');
+            const customMasterTab = document.getElementById('custom-master-layoutTab');
             const clusterActive = pdfTab?.classList.contains('active');
             const networkActive = networkTab?.classList.contains('active');
             const defInfoActive = defInfoTab?.classList.contains('active');
             const carbonCopyActive = carbonCopyTab?.classList.contains('active');
+            const customMasterActive = customMasterTab?.classList.contains('active');
             // 表示中のタブだけ更新（他タブの PDF 描画をキャンセルしない）
-            if (clusterActive || (!clusterActive && !networkActive && !defInfoActive && !carbonCopyActive)) {
+            if (clusterActive || (!clusterActive && !networkActive && !defInfoActive && !carbonCopyActive && !customMasterActive)) {
                 await updatePdfLayout();
             }
             if (token !== layoutRefreshToken) return;
@@ -357,6 +688,10 @@ function scheduleLayoutRefresh() {
             if (token !== layoutRefreshToken) return;
             if (defInfoActive) {
                 updateDefInfoLayout();
+            }
+            if (token !== layoutRefreshToken) return;
+            if (customMasterActive) {
+                await updateCustomMasterLayout();
             }
             if (token !== layoutRefreshToken) return;
             if (carbonCopyActive) {
@@ -371,6 +706,7 @@ const pdfRenderControllers = new Map();
 const CLUSTER_PDF_CANVAS_IDS = ['pdfCanvasSingle', 'pdfCanvas1', 'pdfCanvas2'];
 const NETWORK_PDF_CANVAS_IDS = ['networkPdfCanvas', 'networkCanvas1', 'networkCanvas2'];
 const CARBON_COPY_PDF_CANVAS_IDS = ['carbonCopyCanvas'];
+const CUSTOM_MASTER_PDF_CANVAS_IDS = ['customMasterCanvas'];
 
 function cancelPdfRenders(canvasIds) {
     canvasIds.forEach((id) => {
@@ -390,6 +726,10 @@ function cancelNetworkPdfRenders() {
 
 function cancelCarbonCopyPdfRenders() {
     cancelPdfRenders(CARBON_COPY_PDF_CANVAS_IDS);
+}
+
+function cancelCustomMasterPdfRenders() {
+    cancelPdfRenders(CUSTOM_MASTER_PDF_CANVAS_IDS);
 }
 
 function getPdfViewerSize(viewerEl, fallbackWidth = 800, fallbackHeight = 560) {
@@ -416,13 +756,18 @@ function showReferencePreview() {
     const networkLayoutTab = document.getElementById('network-layoutTab');
     const defInfoLayoutTab = document.getElementById('def-info-layoutTab');
     const carbonCopyLayoutTab = document.getElementById('carbon-copy-layoutTab');
+    const customMasterLayoutTab = document.getElementById('custom-master-layoutTab');
     const isNetworkTabActive = networkLayoutTab && networkLayoutTab.classList.contains('active');
     const isDefInfoTabActive = defInfoLayoutTab && defInfoLayoutTab.classList.contains('active');
     const isCarbonCopyTabActive = carbonCopyLayoutTab && carbonCopyLayoutTab.classList.contains('active');
-    // ネットワーク / 帳票定義情報 / カーボンコピータブ表示中はタブを切り替えず内容だけ更新
-    if (isNetworkTabActive || isDefInfoTabActive || isCarbonCopyTabActive) {
+    const isCustomMasterTabActive = customMasterLayoutTab && customMasterLayoutTab.classList.contains('active');
+    const activeTabBtn = document.querySelector('.tabs .tab.active');
+    const activeTabHidden = activeTabBtn && activeTabBtn.style.display === 'none';
+    // 今の STEP で見えるタブを表示中なら、切り替えず内容だけ更新
+    if (!activeTabHidden && (isNetworkTabActive || isDefInfoTabActive || isCarbonCopyTabActive || isCustomMasterTabActive)) {
         scheduleLayoutRefresh();
         if (isDefInfoTabActive) updateDefInfoLayout();
+        if (isCustomMasterTabActive) updateCustomMasterLayout();
         return;
     }
     // クラスター設定タブをアクティブに
@@ -468,6 +813,7 @@ function loadReferenceXmlFromSelect() {
         xmlData1 = null;
         file1 = null;
         lastDefInfoData = null;
+        lastCustomMasterData = null;
         clearTabBadges();
         const refInfo = document.getElementById('referenceFileInfo');
         if (refInfo) refInfo.style.display = 'none';
@@ -480,18 +826,21 @@ function loadReferenceXmlFromSelect() {
         return;
     }
     const filename = select.value;
+    const loadSeq = ++referenceXmlLoadSeq;
     const info1 = document.getElementById('fileInfo1');
     if (info1) {
         info1.style.display = 'block';
         info1.innerHTML = `<span class="file-status">基準XMLを読み込み中: ${escapeHtml(filename)}</span>`;
     }
 
-    fetch(REFERENCE_XML_BASE_URL + filename)
+    fetch(REFERENCE_XML_BASE_URL + encodeURIComponent(filename))
         .then(r => {
             if (!r.ok) throw new Error(r.status === 404 ? 'ファイルが見つかりません' : 'HTTP ' + r.status);
             return r.text();
         })
         .then(text => {
+            // 後から別STEPの読み込みが始まっていたら、この結果は捨てる
+            if (loadSeq !== referenceXmlLoadSeq) return;
             if (text.length > MAX_XML_SIZE) {
                 xmlData1 = null;
                 file1 = null;
@@ -511,6 +860,7 @@ function loadReferenceXmlFromSelect() {
             checkReady();
         })
         .catch(err => {
+            if (loadSeq !== referenceXmlLoadSeq) return;
             xmlData1 = null;
             file1 = null;
             if (info1) info1.innerHTML = `<span class="file-status" style="color:#c00;">❌ 読み込み失敗: ${escapeHtml(err.message)}</span>`;
@@ -526,23 +876,19 @@ async function loadReferenceXmlList() {
     if (!select) return;
     select.innerHTML = '<option value="">読み込み中...</option>';
 
-    // 基準XMLはSTEP.1・STEP.2の2つから選択
-    const referenceOptions = [
-        { file: 'Definition_check.xml', label: 'STEP.1' },
-        { file: 'Definition_Complet.xml', label: 'STEP.2' }
-    ];
-
+    // 基準XMLは演習ルームと同じ STEP.1〜STEP.4 から選択
     select.innerHTML = '';
-    referenceOptions.forEach((item) => {
+    CHECK_STEP_OPTIONS.forEach((item) => {
         const option = document.createElement('option');
         option.value = item.file;
         option.textContent = item.label;
         select.appendChild(option);
     });
-    // デフォルトで1つ目を選択
-    select.value = referenceOptions[0].file;
+    // 演習ルームから ?step=step3 で来たときは STEP.1 を先に読まない（後勝ちで上書きされるため）
+    const queryFile = CHECK_STEP_QUERY_MAP[new URLSearchParams(window.location.search).get('step')];
+    const hasQueryFile = queryFile && CHECK_STEP_OPTIONS.some((item) => item.file === queryFile);
+    select.value = hasQueryFile ? queryFile : CHECK_STEP_OPTIONS[0].file;
     loadReferenceXmlFromSelect();
-    applyCheckPageStepFromQuery();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -600,6 +946,11 @@ function compareXmlFile() {
         alert('基準XMLを一覧から選択してください。');
         return;
     }
+    // ドロップダウンと実際に読み込んだ基準がずれているときは比較しない
+    if (refSelect.dataset.loadedFile && refSelect.dataset.loadedFile !== refSelect.value) {
+        alert('基準XMLを読み込み中です。完了してから比較してください。');
+        return;
+    }
     if (!file2) {
         alert('比較用XMLファイルをアップロードしてください。');
         return;
@@ -613,6 +964,10 @@ function compareXmlFile() {
     currentSheetIndex = 0;
     totalSheets = 0;
     xmlData2 = null;
+    selectedCustomMasterIndex = null;
+    selectedCarbonCopyIndex = null;
+    closeCustomMasterModal();
+    closeCarbonCopyModal();
     clearTabBadges();
 
     document.getElementById('loading').style.display = 'block';
@@ -680,11 +1035,7 @@ function compareXmlFile() {
             document.getElementById('pdfFileSelect').value = 'compare';
             document.getElementById('loading').style.display = 'none';
             document.getElementById('results').style.display = 'block';
-            const pdfLayoutTab = document.getElementById('pdf-layoutTab');
-            const networkLayoutTab = document.getElementById('network-layoutTab');
-            if (pdfLayoutTab) pdfLayoutTab.classList.add('active');
-            if (networkLayoutTab) networkLayoutTab.classList.remove('active');
-            scheduleLayoutRefresh();
+            showTab('pdf-layout');
         } catch (error) {
             console.error('比較エラー:', error);
             let errorMessage = 'ファイルの比較中にエラーが発生しました。\n\n' + `エラー詳細: ${error.message}\n`;
@@ -846,6 +1197,18 @@ function computeDefInfoTabBadgeLevel(defInfo) {
     return resolveTabBadgeLevel(hasRed, hasBlue);
 }
 
+function computeCustomMasterTabBadgeLevel(customMaster) {
+    if (!xmlData1 || !xmlData2) return 'none';
+    const data = customMaster || (() => {
+        const parser = new DOMParser();
+        const doc1 = parser.parseFromString(xmlData1, 'text/xml');
+        const doc2 = parser.parseFromString(xmlData2, 'text/xml');
+        return buildCustomMasterData(doc1, doc2);
+    })();
+    if (!data?.compareMode) return 'none';
+    return resolveTabBadgeLevel(!!data.hasRed, !!data.hasBlue);
+}
+
 function setTabBadgeLegendVisible(visible) {
     const legend = document.getElementById('tabBadgeLegend');
     if (legend) legend.style.display = visible ? 'flex' : 'none';
@@ -859,7 +1222,7 @@ function clearTabBadges() {
     setTabBadgeLegendVisible(false);
 }
 
-function updateTabBadges(defInfoOverride = null) {
+function updateTabBadges(defInfoOverride = null, customMasterOverride = null) {
     clearTabBadges();
     if (!xmlData1 || !xmlData2) return;
 
@@ -867,6 +1230,7 @@ function updateTabBadges(defInfoOverride = null) {
         cluster: computeClusterTabBadgeLevel(),
         network: computeNetworkTabBadgeLevel(),
         carbonCopy: computeCarbonCopyTabBadgeLevel(),
+        customMaster: computeCustomMasterTabBadgeLevel(customMasterOverride ?? lastCustomMasterData),
         defInfo: computeDefInfoTabBadgeLevel(defInfoOverride ?? lastDefInfoData),
     };
 
@@ -981,8 +1345,10 @@ function displayResults(result) {
         }
 
         lastDefInfoData = result.defInfo || null;
+        lastCustomMasterData = result.customMaster || null;
+        updateLayoutModeUi();
         updateDefInfoLayout(result.defInfo || null);
-        updateTabBadges(result.defInfo || null);
+        updateTabBadges(result.defInfo || null, result.customMaster || null);
 }
 
 function updateTabSectionTitle(tabName) {
@@ -1001,8 +1367,21 @@ function updateTabPanelIntro(tabName) {
     });
 }
 
+function clearDetailSelectionsAndModals() {
+    selectedCustomMasterIndex = null;
+    selectedCarbonCopyIndex = null;
+    closeCustomMasterModal();
+    closeCarbonCopyModal();
+    const clusterModal = document.getElementById('clusterModal');
+    if (clusterModal) clusterModal.style.display = 'none';
+    const networkModal = document.getElementById('networkModal');
+    if (networkModal) networkModal.style.display = 'none';
+}
+
 function showTab(tabName) {
     console.log('タブ切り替え:', tabName);
+    // タブ切替時は前回の詳細モーダル／選択状態を閉じる（自動で開かない）
+    clearDetailSelectionsAndModals();
     updateTabSectionTitle(tabName);
     updateTabPanelIntro(tabName);
     
@@ -1061,6 +1440,10 @@ function showTab(tabName) {
 
     if (tabName === 'def-info-layout') {
         updateDefInfoLayout();
+    }
+
+    if (tabName === 'custom-master-layout') {
+        scheduleLayoutRefresh();
     }
 
     if (tabName === 'carbon-copy-layout') {
@@ -1212,21 +1595,6 @@ function setReferenceFile() {
 
 setReferenceFileHandler(setReferenceFile);
 
-const CHECK_STEP_QUERY_MAP = {
-    step1: 'Definition_check.xml',
-    step2: 'Definition_Complet.xml',
-};
-
-function applyCheckPageStepFromQuery() {
-    const step = new URLSearchParams(window.location.search).get('step');
-    const file = step && CHECK_STEP_QUERY_MAP[step];
-    if (!file) return;
-    const refSelect = document.getElementById('referenceXmlSelect');
-    if (!refSelect) return;
-    refSelect.value = file;
-    loadReferenceXmlFromSelect();
-}
-
 function loadReferencePdfLayout() {
     // 基準ファイルのPDFレイアウトを設定
     const pdfViewer = document.getElementById('pdfViewer');
@@ -1236,13 +1604,15 @@ function loadReferencePdfLayout() {
                 <div style="text-align: center; padding: 2rem;">
                     <h3 style="color: #28a745; margin-bottom: 1rem;">📄 基準ファイルPDFレイアウト</h3>
                     <p style="color: #155724; margin-bottom: 1rem;">
-                        基準XMLで <strong>STEP.1</strong> のとき <strong>Def_Check_1.pdf</strong>、<strong>STEP.2</strong> のとき <strong>Def_Check_2.pdf</strong>（<code>Material</code> フォルダ）を背景として使用します。
+                        基準XMLで <strong>STEP.1</strong> のとき <strong>Def_Check_1.pdf</strong>、<strong>STEP.2</strong> のとき <strong>Def_Check_2.pdf</strong>、<strong>STEP.3</strong> のとき <strong>Def_Check_3.pdf</strong>、<strong>STEP.4</strong> のとき <strong>Def_Check_4.pdf</strong>（<code>Material</code> フォルダ）を背景として使用します。
                     </p>
                     <div style="background: #e8f5e8; border: 2px solid #28a745; border-radius: 10px; padding: 1rem; margin: 1rem 0;">
                         <strong>📋 基準ファイル情報:</strong>
                         <ul style="text-align: left; margin: 1rem 0; padding-left: 1.5rem; color: #155724;">
                             <li>STEP.1: Definition_check.xml → Def_Check_1.pdf</li>
                             <li>STEP.2: Definition_Complet.xml → Def_Check_2.pdf</li>
+                            <li>STEP.3: カスタムマスター演習.xml → Def_Check_3.pdf</li>
+                            <li>STEP.4: カスタムマスター設定_応用版練習.xml → Def_Check_4.pdf</li>
                             <li>XMLに背景が埋め込まれている場合はそちらを優先します</li>
                         </ul>
                     </div>
@@ -1257,10 +1627,10 @@ function loadReferencePdfLayout() {
     
     // PDF情報を更新（プレースホルダー：実際の表示は比較開始後に更新）
     if (document.getElementById('pdfSheetName')) {
-        document.getElementById('pdfSheetName').textContent = 'STEP.1 / STEP.2 を選択';
+        document.getElementById('pdfSheetName').textContent = 'STEP.1 / STEP.2 / STEP.3 / STEP.4 を選択';
     }
     if (document.getElementById('pdfBackground')) {
-        document.getElementById('pdfBackground').textContent = 'Def_Check_1 / Def_Check_2.pdf';
+        document.getElementById('pdfBackground').textContent = 'Def_Check_1 / Def_Check_2 / Def_Check_3 / Def_Check_4.pdf';
     }
 }
 
@@ -1635,7 +2005,7 @@ function displayClustersOnPdf() {
                         font-weight: 600;
                         white-space: nowrap;
                         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    ">${index}</div>
+                    ">${formatClusterCode((currentSheetIndex || 0) + 1, index)}</div>
                     ${isDifferent ? '<div class="cluster-difference-indicator">!</div>' : ''}
                 </div>
             `;
@@ -2019,7 +2389,7 @@ async function generatePdfLayout(xmlData, displayMode, scale, fileSelect) {
                     font-weight: 600;
                     white-space: nowrap;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                ">${index}</div>
+                ">${formatClusterCode(currentSheetIndex + 1, index)}</div>
                 ${isDifferent ? '<div class="cluster-difference-indicator">!</div>' : ''}
             </div>
         `;
@@ -2445,22 +2815,482 @@ function updateDefInfoLayout(defInfoOverride = null) {
     viewer.innerHTML = tableHtml + partsDetailHtml;
 }
 
-function resetCarbonCopyDetailPanel(message = 'シート上のクラスターをクリックすると、元・先の設定が表で表示されます。') {
-    const panel = document.getElementById('carbonCopyDetailContent');
-    const hint = document.querySelector('.carbon-copy-detail-hint');
-    if (hint) hint.textContent = message;
-    if (panel) {
-        panel.innerHTML = '';
+function resolveCustomMasterData() {
+    if (lastCustomMasterData && xmlData1 && xmlData2) {
+        return lastCustomMasterData;
+    }
+    const parser = new DOMParser();
+    if (xmlData1 && xmlData2) {
+        const doc1 = parser.parseFromString(xmlData1, 'text/xml');
+        const doc2 = parser.parseFromString(xmlData2, 'text/xml');
+        return buildCustomMasterData(doc1, doc2);
+    }
+    if (xmlData1) {
+        const doc1 = parser.parseFromString(xmlData1, 'text/xml');
+        return buildCustomMasterData(doc1);
+    }
+    return null;
+}
+
+function customMasterStatusBadge(match, optional = false, env = false) {
+    if (match) return '<span class="network-value-same">一致</span>';
+    if (env) return '<span class="def-info-status def-info-optional">環境差</span>';
+    if (optional) return '<span class="def-info-status def-info-optional">差分あり</span>';
+    return '<span class="network-value-different">不一致</span>';
+}
+
+function customMasterRowClass(match, optional = false, env = false) {
+    if (match || env) return '';
+    if (optional) return 'def-info-row-optional';
+    return 'def-info-row-diff';
+}
+
+function formatCustomMasterFieldLabel(field) {
+    if (field.key === 'targets') {
+        return '割当先<br>子クラスター';
+    }
+    return escapeHtml(field.label);
+}
+
+function formatCustomMasterCell(field, side) {
+    const raw = side === 'ref' ? field.ref : field.up;
+    if (field.key !== 'targets') return escapeHtml(raw);
+
+    const rows = field.relationRows
+        || (field.refTargets || field.upTargets
+            ? buildRelationCompareRows(field.refTargets || [], field.upTargets || [])
+            : null);
+
+    if (!rows?.length) {
+        return escapeHtml(raw || '未設定');
+    }
+
+    const listHtml = rows
+        .map((row) => {
+            const name = side === 'ref' ? row.refName : row.upName;
+            const isMissing = name == null;
+            const isDiff = row.status !== 'same';
+            const itemClass = isDiff
+                ? 'custom-master-relation-item custom-master-relation-item--diff'
+                : 'custom-master-relation-item custom-master-relation-item--same';
+            const fieldText = isMissing ? `（未設定）【${row.code}】` : `${name}【${row.code}】`;
+            const mark = isDiff ? '<span class="custom-master-relation-mark" aria-hidden="true">!</span>' : '';
+            return `<li class="${itemClass}">${mark}<span class="custom-master-relation-line">${escapeHtml(fieldText)}</span></li>`;
+        })
+        .join('');
+
+    return `<ul class="custom-master-relation-list">${listHtml}</ul>`;
+}
+
+function formatCustomMasterRelationStatus(field) {
+    return customMasterStatusBadge(!!field.match);
+}
+
+function renderCustomMasterFieldsTable(row, compareMode) {
+    if (compareMode) {
+        const rowsHtml = row.fields
+            .map((field) => {
+                const optional = field.severity === 'blue';
+                const env = field.severity === 'env';
+                const statusHtml = field.key === 'targets' && !field.match
+                    ? formatCustomMasterRelationStatus(field)
+                    : customMasterStatusBadge(field.match, optional, env);
+                return `<tr class="${customMasterRowClass(field.match, optional, env)}">
+                    <td><strong>${formatCustomMasterFieldLabel(field)}</strong></td>
+                    <td>${formatCustomMasterCell(field, 'ref')}</td>
+                    <td>${formatCustomMasterCell(field, 'up')}</td>
+                    <td>${statusHtml}</td>
+                </tr>`;
+            })
+            .join('');
+        return `
+            <table class="network-comparison-table">
+                <thead>
+                    <tr>
+                        <th>設定項目</th>
+                        <th>基準XML</th>
+                        <th>比較XML</th>
+                        <th>状態</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>`;
+    }
+    const rowsHtml = row.fields
+        .map(
+            (field) => `<tr>
+                <td><strong>${formatCustomMasterFieldLabel(field)}</strong></td>
+                <td>${formatCustomMasterCell(field, 'ref')}</td>
+            </tr>`,
+        )
+        .join('');
+    return `
+        <table class="network-comparison-table">
+            <thead>
+                <tr><th>設定項目</th><th>基準XML</th></tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>`;
+}
+
+function formatCustomMasterSources(sources) {
+    if (!sources?.length) return 'なし';
+    return sources
+        .map((s) => {
+            const code = `S${currentSheetIndex + 1}C${s.index}`;
+            return s.fieldName ? `${s.fieldName}【${code}】` : code;
+        })
+        .join(' / ');
+}
+
+function formatChildClusterParentCode(source, sheetNo0 = currentSheetIndex) {
+    if (!source || source.index == null) return '未設定';
+    return `S${sheetNo0 + 1}C${source.index}`;
+}
+
+function getChildClusterFieldLabel(sources, clusterIndex, clusters) {
+    const fromSource = sources?.[0]?.fieldName;
+    if (fromSource) return fromSource;
+    const name = clusters?.[clusterIndex]?.querySelector('name')?.textContent?.trim();
+    return name || '未設定';
+}
+
+function renderChildClusterDetailTable(clusterIndex, clusters1, clusters2, compareMode, visual) {
+    const parentRef = formatChildClusterParentCode(visual.sources1[0]);
+    const parentUp = formatChildClusterParentCode(visual.sources2[0]);
+    const fieldRef = getChildClusterFieldLabel(visual.sources1, clusterIndex, clusters1);
+    const fieldUp = getChildClusterFieldLabel(visual.sources2, clusterIndex, clusters2);
+    const parentMatch = parentRef === parentUp;
+    const fieldMatch = fieldRef === fieldUp;
+
+    if (compareMode) {
+        return `
+            <table class="network-comparison-table">
+                <thead>
+                    <tr><th>設定項目</th><th>基準XML</th><th>比較XML</th><th>状態</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="${customMasterRowClass(parentMatch)}">
+                        <td><strong>親クラスター</strong></td>
+                        <td>${escapeHtml(parentRef)}</td>
+                        <td>${escapeHtml(parentUp)}</td>
+                        <td>${customMasterStatusBadge(parentMatch)}</td>
+                    </tr>
+                    <tr class="${customMasterRowClass(fieldMatch)}">
+                        <td><strong>入力フィールド</strong></td>
+                        <td>${escapeHtml(fieldRef)}</td>
+                        <td>${escapeHtml(fieldUp)}</td>
+                        <td>${customMasterStatusBadge(fieldMatch)}</td>
+                    </tr>
+                </tbody>
+            </table>`;
+    }
+    return `
+        <table class="network-comparison-table">
+            <thead><tr><th>設定項目</th><th>基準XML</th></tr></thead>
+            <tbody>
+                <tr><td><strong>親クラスター</strong></td><td>${escapeHtml(parentRef)}</td></tr>
+                <tr><td><strong>入力フィールド</strong></td><td>${escapeHtml(fieldRef)}</td></tr>
+            </tbody>
+        </table>`;
+}
+
+function closeCustomMasterModal(event) {
+    const modal = document.getElementById('customMasterModal');
+    if (!modal) return;
+    if (!event || event.target === modal || event.target.id === 'customMasterModalClose' || event.target.classList.contains('network-modal-close')) {
+        modal.style.display = 'none';
+    }
+}
+
+function resetCustomMasterDetailPanel() {
+    closeCustomMasterModal();
+}
+
+function updateCustomMasterDetailPanel(clusterIndex) {
+    const modal = document.getElementById('customMasterModal');
+    const body = document.getElementById('customMasterModalBody');
+    const title = document.getElementById('customMasterModalTitle');
+    if (!modal || !body) return;
+    if (!xmlData1) {
+        modal.style.display = 'none';
+        return;
+    }
+
+    const parser = new DOMParser();
+    const doc1 = parser.parseFromString(xmlData1, 'text/xml');
+    const doc2 = xmlData2 ? parser.parseFromString(xmlData2, 'text/xml') : null;
+    const sheets1 = doc1.querySelectorAll('sheets sheet');
+    const sheet1 = sheets1[currentSheetIndex];
+    if (!sheet1) return;
+
+    const clusters1 = Array.from(sheet1.querySelectorAll('clusters cluster'));
+    const sheet2 = doc2?.querySelectorAll('sheets sheet')?.[currentSheetIndex];
+    const clusters2 = sheet2 ? Array.from(sheet2.querySelectorAll('clusters cluster')) : [];
+    const compareMode = !!xmlData2;
+    const visual = getCustomMasterClusterVisual(clusterIndex, clusters1, clusters2, compareMode);
+    const row = buildCustomMasterClusterRow(currentSheetIndex, clusterIndex, clusters1, clusters2, compareMode);
+    const name = row.name || visual.info1.name || visual.info2.name || '未設定';
+
+    if (title) {
+        title.textContent = `📌 ${formatClusterCode(currentSheetIndex + 1, clusterIndex)}（${name}）のカスタムマスター`;
+    }
+
+    let html = '';
+    if (visual.isSource || visual.info1.meaningful || visual.info2.meaningful || visual.info1.isSelectMaster || visual.info2.isSelectMaster) {
+        html += `
+            <div class="network-info-section">
+                <h4>📋 ${compareMode ? '基準XML vs 比較XML' : '基本情報（基準XML）'}</h4>
+                ${renderCustomMasterFieldsTable(row, compareMode)}
+            </div>`;
+    } else if (visual.isTarget) {
+        html += `
+            <div class="network-info-section">
+                <h4>📋 ${compareMode ? '基準XML vs 比較XML' : '基本情報（基準XML）'}</h4>
+                ${renderChildClusterDetailTable(clusterIndex, clusters1, clusters2, compareMode, visual)}
+            </div>`;
+        if (compareMode) {
+            const parentMatch =
+                formatChildClusterParentCode(visual.sources1[0]) ===
+                formatChildClusterParentCode(visual.sources2[0]);
+            const fieldMatch =
+                getChildClusterFieldLabel(visual.sources1, clusterIndex, clusters1) ===
+                getChildClusterFieldLabel(visual.sources2, clusterIndex, clusters2);
+            if (parentMatch && fieldMatch) {
+                html += '<div class="network-info-section" style="border-left-color:#28a745;background:#d4edda;"><p style="margin:0;color:#155724;">✅ 差分なし: 基準XMLと設定が同じです。</p></div>';
+            } else {
+                html += '<div class="network-difference-section"><h4>⚠️ 差分の内容</h4><p>基準XMLとカスタムマスター設定が異なります。</p></div>';
+            }
+        }
+    } else {
+        html = '<div class="network-info-section"><p>このクラスターにカスタムマスター設定はありません。</p></div>';
+    }
+
+    if (compareMode && visual.isSource) {
+        if (!visual.compare.match) {
+            html += visual.compare.hasRed
+                ? '<div class="network-difference-section"><h4>⚠️ 差分の内容</h4><p>親子関係が基準XMLと異なります。</p></div>'
+                : '<div class="network-info-section"><p>ℹ️ 任意項目に差分があります。</p></div>';
+        } else {
+            const envDiff = row.fields.some((field) => field.severity === 'env' && !field.match);
+            html += envDiff
+                ? '<div class="network-info-section" style="border-left-color:#28a745;background:#d4edda;"><p style="margin:0;color:#155724;">✅ 親子関係は同等です。マスターID・キー・名称の違いは環境差のため問題ありません。</p></div>'
+                : '<div class="network-info-section" style="border-left-color:#28a745;background:#d4edda;"><p style="margin:0;color:#155724;">✅ 差分なし: 基準XMLと設定が同じです。</p></div>';
+        }
+    }
+
+    body.innerHTML = html;
+    modal.style.display = 'block';
+}
+
+function selectCustomMasterCluster(index) {
+    selectedCustomMasterIndex = index;
+    document.querySelectorAll('.custom-master-overlay').forEach((el) => {
+        el.classList.toggle('selected', parseInt(el.dataset.clusterIndex, 10) === index);
+    });
+    updateCustomMasterDetailPanel(index);
+}
+
+function updateCustomMasterSheetNavigation() {
+    const selectionContainer = document.getElementById('customMasterSheetSelectionContainer');
+    const navContainer = document.getElementById('customMasterSheetNavigationVisible');
+    if (!navContainer) return;
+
+    if (totalSheets > 1) {
+        if (selectionContainer) selectionContainer.style.display = 'block';
+        let navHtml = '';
+        for (let i = 0; i < totalSheets; i++) {
+            const isActive = i === currentSheetIndex;
+            navHtml += `
+                <button class="sheet-nav-btn ${isActive ? 'active' : ''}"
+                        data-custom-master-sheet-index="${i}"
+                        style="
+                            padding: 8px 16px;
+                            margin: 0 4px;
+                            border: 2px solid ${isActive ? '#007bff' : '#ddd'};
+                            background: ${isActive ? '#007bff' : 'white'};
+                            color: ${isActive ? 'white' : '#666'};
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: ${isActive ? 'bold' : 'normal'};
+                        ">
+                    シート${i + 1}
+                </button>`;
+        }
+        navContainer.innerHTML = navHtml;
+    } else if (selectionContainer) {
+        selectionContainer.style.display = 'none';
+    }
+}
+
+function changeCustomMasterSheet(index) {
+    const newIndex = Math.max(0, Math.min(totalSheets - 1, index));
+    if (currentSheetIndex === newIndex) return;
+    currentSheetIndex = newIndex;
+    selectedCustomMasterIndex = null;
+    updateCustomMasterSheetNavigation();
+    updateCustomMasterLayout();
+}
+
+async function updateCustomMasterLayout() {
+    if (window.__isUpdatingCustomMasterLayout) return;
+    window.__isUpdatingCustomMasterLayout = true;
+
+    if (xmlData1 && xmlData2) {
+        await generateCustomMasterLayout(xmlData1, xmlData2);
+        window.__isUpdatingCustomMasterLayout = false;
+        return;
+    }
+
+    if (xmlData1 && !xmlData2) {
+        await generateCustomMasterLayout(xmlData1, null);
+        window.__isUpdatingCustomMasterLayout = false;
+        return;
+    }
+
+    const viewer = document.getElementById('customMasterViewer');
+    if (viewer) {
+        viewer.innerHTML = `
+            <div class="custom-master-placeholder">
+                <p>基準XMLを選択するか、比較XMLを選んで「比較を開始」を実行してください。</p>
+            </div>`;
+    }
+    resetCustomMasterDetailPanel();
+    window.__isUpdatingCustomMasterLayout = false;
+}
+
+async function generateCustomMasterLayout(xmlData1Input, xmlData2Input) {
+    const viewer = document.getElementById('customMasterViewer');
+    if (!viewer) return;
+
+    cancelCustomMasterPdfRenders();
+    const pendingPdfRenders = [];
+
+    const parser = new DOMParser();
+    const xmlDoc1 = parser.parseFromString(xmlData1Input, 'text/xml');
+    const xmlDoc2 = xmlData2Input ? parser.parseFromString(xmlData2Input, 'text/xml') : null;
+
+    const sheets1 = xmlDoc1.querySelectorAll('sheets sheet');
+    const sheets2 = xmlDoc2 ? xmlDoc2.querySelectorAll('sheets sheet') : [];
+    totalSheets = Math.max(sheets1.length, sheets2.length || sheets1.length);
+    updateCustomMasterSheetNavigation();
+
+    if (currentSheetIndex >= sheets1.length) {
+        viewer.innerHTML = `<div class="custom-master-placeholder">シート${currentSheetIndex + 1}が基準XMLに存在しません。</div>`;
+        return;
+    }
+
+    const sheet1 = sheets1[currentSheetIndex];
+    const sheet2 = sheets2[currentSheetIndex] || null;
+    const compareMode = !!xmlData2Input;
+    const sheetNo1Based = currentSheetIndex + 1;
+
+    const width = parseFloat(sheet1.querySelector('width')?.textContent || '595.32');
+    const height = parseFloat(sheet1.querySelector('height')?.textContent || '841.92');
+    const width2 = sheet2
+        ? parseFloat(sheet2.querySelector('width')?.textContent || String(width))
+        : width;
+    const height2 = sheet2
+        ? parseFloat(sheet2.querySelector('height')?.textContent || String(height))
+        : height;
+
+    const sheetBackgroundImage1 = sheet1.querySelector('backgroundImage')?.textContent;
+    const rootBackgroundImage1 = xmlDoc1.querySelector('backgroundImage')?.textContent;
+    const backgroundImage1 = sheetBackgroundImage1 || rootBackgroundImage1;
+
+    const clusters1 = Array.from(sheet1.querySelectorAll('clusters cluster'));
+    const clusters2 = sheet2 ? Array.from(sheet2.querySelectorAll('clusters cluster')) : [];
+
+    let layoutHtml = '';
+
+    if (compareMode && sheet2) {
+        const metrics = computeDualPanelMetrics(viewer, width, height, width2, height2);
+        const {
+            outerPadding,
+            gap,
+            contentPadding,
+            optimalScale,
+            scaledWidth1,
+            scaledHeight1,
+            scaledWidth2,
+            scaledHeight2,
+            containerWidthFinal,
+            containerHeightFinal,
+        } = metrics;
+
+        const sheetBackgroundImage2 = sheet2.querySelector('backgroundImage')?.textContent;
+        const rootBackgroundImage2 = xmlDoc2.querySelector('backgroundImage')?.textContent;
+        const backgroundImage2 = sheetBackgroundImage2 || rootBackgroundImage2;
+
+        layoutHtml += `
+            <div style="display:flex;gap:${gap}px;padding:${outerPadding}px;align-items:flex-start;">
+                <div style="flex:1;text-align:center;">
+                    <h4 style="color:#ff9500;margin-bottom:0.5rem;font-size:1.1rem;font-weight:600;">📄 基準XML</h4>
+                    <div style="position:relative;width:${containerWidthFinal}px;height:${containerHeightFinal}px;border:3px solid #ff9500;background:#fff;margin:0 auto;border-radius:10px;box-shadow:0 4px 15px rgba(255,149,0,0.2);overflow:visible;display:flex;align-items:center;justify-content:center;">
+                        <div id="customMasterContent1" style="position:relative;width:${scaledWidth1}px;height:${scaledHeight1}px;margin:${contentPadding}px auto;overflow:visible;">
+                            ${buildSheetBackgroundHtml(scaledWidth1, scaledHeight1, backgroundImage1, 'customMasterCanvas1', sheetBackgroundImage1, rootBackgroundImage1, pendingPdfRenders)}
+                            ${buildCustomMasterClusterOverlays(clusters1, clusters1, clusters2, 'ref', compareMode, optimalScale, width, height, sheetNo1Based, selectedCustomMasterIndex)}
+                        </div>
+                    </div>
+                </div>
+                <div style="flex:1;text-align:center;">
+                    <h4 style="color:#007bff;margin-bottom:0.5rem;font-size:1.1rem;font-weight:600;">📄 比較XML</h4>
+                    <div style="position:relative;width:${containerWidthFinal}px;height:${containerHeightFinal}px;border:3px solid #007bff;background:#fff;margin:0 auto;border-radius:10px;box-shadow:0 4px 15px rgba(0,123,255,0.15);overflow:visible;display:flex;align-items:center;justify-content:center;">
+                        <div id="customMasterContent2" style="position:relative;width:${scaledWidth2}px;height:${scaledHeight2}px;margin:${contentPadding}px auto;overflow:visible;">
+                            ${buildSheetBackgroundHtml(scaledWidth2, scaledHeight2, backgroundImage2, 'customMasterCanvas2', sheetBackgroundImage2, rootBackgroundImage2, pendingPdfRenders)}
+                            ${buildCustomMasterClusterOverlays(clusters2, clusters1, clusters2, 'comp', compareMode, optimalScale, width2, height2, sheetNo1Based, selectedCustomMasterIndex)}
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    } else {
+        const viewerSize = getPdfViewerSize(viewer, 500, 600);
+        const viewerWidth = Math.max(viewerSize.width - 40, 1);
+        const viewerHeight = Math.max(viewerSize.height - 40, 1);
+        const scaleX = viewerWidth / width;
+        const scaleY = viewerHeight / height;
+        const optimalScale = normalizeLayoutScale(Math.min(scaleX, scaleY, 1.2), width, height);
+        const scaledWidth = width * optimalScale;
+        const scaledHeight = height * optimalScale;
+
+        layoutHtml += `
+            <div style="display:flex;justify-content:center;padding:0.5rem;">
+                <div style="position:relative;width:${scaledWidth}px;height:${scaledHeight}px;border:3px solid #ff9500;border-radius:10px;background:#fff;overflow:visible;box-shadow:0 4px 15px rgba(255,149,0,0.2);">
+                    ${buildSheetBackgroundHtml(scaledWidth, scaledHeight, backgroundImage1, 'customMasterCanvas', sheetBackgroundImage1, rootBackgroundImage1, pendingPdfRenders)}
+                    ${buildCustomMasterClusterOverlays(clusters1, clusters1, clusters2, 'ref', compareMode, optimalScale, width, height, sheetNo1Based, selectedCustomMasterIndex)}
+                </div>
+            </div>`;
+    }
+
+    viewer.innerHTML = layoutHtml;
+
+    pendingPdfRenders.forEach(({ base64, canvasId, width: w, height: h, pageNumber }) => {
+        renderPdfAsImage(base64, canvasId, w, h, pageNumber);
+    });
+
+    closeCustomMasterModal();
+}
+
+function resetCarbonCopyDetailPanel() {
+    closeCarbonCopyModal();
+}
+
+function closeCarbonCopyModal(event) {
+    const modal = document.getElementById('carbonCopyModal');
+    if (!modal) return;
+    if (!event || event.target === modal || event.target.id === 'carbonCopyModalClose' || event.target.classList.contains('network-modal-close')) {
+        modal.style.display = 'none';
     }
 }
 
 function updateCarbonCopyDetailPanel(clusterIndex) {
-    const panel = document.getElementById('carbonCopyDetailContent');
-    const hint = document.querySelector('.carbon-copy-detail-hint');
-    if (!panel) return;
+    const modal = document.getElementById('carbonCopyModal');
+    const body = document.getElementById('carbonCopyModalBody');
+    const title = document.getElementById('carbonCopyModalTitle');
+    if (!modal || !body) return;
 
     if (!xmlData1) {
-        resetCarbonCopyDetailPanel();
+        modal.style.display = 'none';
         return;
     }
 
@@ -2476,6 +3306,10 @@ function updateCarbonCopyDetailPanel(clusterIndex) {
     const clusters2 = sheet2 ? Array.from(sheet2.querySelectorAll('clusters cluster')) : [];
     const sheetNo1Based = currentSheetIndex + 1;
     const compareMode = !!(xmlData1 && xmlData2);
+    const clusterCode = formatClusterCode(sheetNo1Based, clusterIndex);
+    const clusterName = clusters1[clusterIndex]?.querySelector('name')?.textContent?.trim()
+        || clusters2[clusterIndex]?.querySelector('name')?.textContent?.trim()
+        || '';
 
     const data = buildCarbonCopyDetailData(
         clusterIndex,
@@ -2485,10 +3319,13 @@ function updateCarbonCopyDetailPanel(clusterIndex) {
         compareMode,
     );
 
-    if (hint) {
-        hint.textContent = `クラスター INDEX ${clusterIndex} のカーボンコピー設定（${compareMode ? '基準XML vs 比較XML' : '基準XML'}）`;
+    if (title) {
+        title.textContent = clusterName
+            ? `📋 ${clusterCode}（${clusterName}）のカーボンコピー`
+            : `📋 ${clusterCode} のカーボンコピー`;
     }
-    panel.innerHTML = renderCarbonCopyDetailHtml(data, escapeHtml);
+    body.innerHTML = renderCarbonCopyDetailHtml(data, escapeHtml);
+    modal.style.display = 'block';
 }
 
 function selectCarbonCopyCluster(index) {
@@ -2602,125 +3439,81 @@ async function generateCarbonCopyLayout(xmlData1Input, xmlData2Input) {
         ? parseFloat(sheet2.querySelector('height')?.textContent || String(height))
         : height;
 
-    const viewerSize = getPdfViewerSize(viewer, 500, 600);
-    const viewerWidth = Math.max(viewerSize.width - 40, 1);
-    const viewerHeight = Math.max(viewerSize.height - 40, 1);
-    const scaleX = viewerWidth / Math.max(width, width2);
-    const scaleY = viewerHeight / Math.max(height, height2);
-    const optimalScale = normalizeLayoutScale(Math.min(scaleX, scaleY, 1.2), width, height);
-
-    const scaledWidth = width * optimalScale;
-    const scaledHeight = height * optimalScale;
-
-    const clusters1 = Array.from(sheet1.querySelectorAll('clusters cluster'));
-    const clusters2 = sheet2 ? Array.from(sheet2.querySelectorAll('clusters cluster')) : [];
-    const displayClusters = compareMode ? clusters2 : clusters1;
-    const refClusters = clusters1;
-    const targetSet = buildTargetIndexSet(displayClusters, sheetNo1Based);
-
     const sheetBackgroundImage1 = sheet1.querySelector('backgroundImage')?.textContent;
     const rootBackgroundImage1 = xmlDoc1.querySelector('backgroundImage')?.textContent;
     const backgroundImage1 = sheetBackgroundImage1 || rootBackgroundImage1;
 
-    let layoutHtml = `
-        <div style="display:flex;justify-content:center;padding:0.5rem;">
-            <div id="carbonCopyContent" style="
-                position:relative;
-                width:${scaledWidth}px;
-                height:${scaledHeight}px;
-                border:3px solid #007bff;
-                border-radius:10px;
-                background:#fff;
-                overflow:visible;
-                box-shadow:0 4px 15px rgba(0,123,255,0.15);
-            ">`;
+    const clusters1 = Array.from(sheet1.querySelectorAll('clusters cluster'));
+    const clusters2 = sheet2 ? Array.from(sheet2.querySelectorAll('clusters cluster')) : [];
 
-    if (backgroundImage1 && backgroundImage1.length > 100) {
-        const cleanedBg = backgroundImage1.replace(/[\r\n\s\t]/g, '');
-        const isPdfData = cleanedBg.startsWith('JVBERi0') || cleanedBg.substring(0, 20).includes('PDF');
-        if (isPdfData) {
-            layoutHtml += `
-                <div style="position:absolute;top:0;left:0;width:${scaledWidth}px;height:${scaledHeight}px;z-index:1;overflow:hidden;background:#fff;">
-                    <canvas id="carbonCopyCanvas" style="width:100%;height:100%;display:block;"></canvas>
-                </div>`;
-            const useSheetSpecificPage = !sheetBackgroundImage1 && rootBackgroundImage1;
-            pendingCarbonCopyPdfRenders.push({
-                base64: cleanedBg,
-                canvasId: 'carbonCopyCanvas',
-                width: scaledWidth,
-                height: scaledHeight,
-                pageNumber: useSheetSpecificPage ? currentSheetIndex + 1 : 1,
-            });
-        } else {
-            layoutHtml += `
-                <div style="
-                    position:absolute;top:0;left:0;width:${scaledWidth}px;height:${scaledHeight}px;z-index:1;
-                    background-image:url('data:image/png;base64,${cleanedBg}');
-                    background-size:100% 100%;background-repeat:no-repeat;background-position:top left;
-                "></div>`;
-        }
-    }
+    let layoutHtml = '';
 
-    displayClusters.forEach((cluster, index) => {
-        const refCluster = refClusters[index] || null;
-        const infoRef = extractCarbonCopyInfo(refCluster, index, sheetNo1Based);
-        const infoComp = extractCarbonCopyInfo(cluster, index, sheetNo1Based);
-        const compare = compareMode ? compareCarbonCopyInfo(infoRef, infoComp) : { match: true };
-        const isSource = infoComp.hasSetting;
-        const isTarget = targetSet.has(index);
-        const visual = compareMode
-            ? getCarbonCopyVisualState(compare, isSource, isTarget)
-            : getCarbonCopyVisualState({ match: true }, infoRef.hasSetting, buildTargetIndexSet(refClusters, sheetNo1Based).has(index));
+    if (compareMode && sheet2) {
+        const metrics = computeDualPanelMetrics(viewer, width, height, width2, height2);
+        const {
+            outerPadding,
+            gap,
+            contentPadding,
+            optimalScale,
+            scaledWidth1,
+            scaledHeight1,
+            scaledWidth2,
+            scaledHeight2,
+            containerWidthFinal,
+            containerHeightFinal,
+        } = metrics;
 
-        const effW = compareMode ? width2 : width;
-        const effH = compareMode ? height2 : height;
-        const rawTop = cluster.querySelector('top')?.textContent || '0';
-        const rawLeft = cluster.querySelector('left')?.textContent || '0';
-        const rawRight = cluster.querySelector('right')?.textContent || '0';
-        const rawBottom = cluster.querySelector('bottom')?.textContent || '0';
-        const top = parseFloat(rawTop) * effH * optimalScale;
-        const left = parseFloat(rawLeft) * effW * optimalScale;
-        const clusterWidth = (parseFloat(rawRight) - parseFloat(rawLeft)) * effW * optimalScale;
-        const clusterHeight = (parseFloat(rawBottom) - parseFloat(rawTop)) * effH * optimalScale;
-
-        const overlayClass = `carbon-copy-overlay carbon-copy-overlay--${visual}`;
-        const badgeClass = `carbon-copy-badge carbon-copy-badge--${visual}`;
-        const roleTag = isSource && isTarget
-            ? '<span class="carbon-copy-role-tag">元・先</span>'
-            : isSource
-              ? '<span class="carbon-copy-role-tag">元</span>'
-              : isTarget
-                ? '<span class="carbon-copy-role-tag">先</span>'
-                : '';
-        const diffMark = compareMode && !compare.match ? '<span class="carbon-copy-diff-mark">!</span>' : '';
-        const selectedClass = selectedCarbonCopyIndex === index ? ' selected' : '';
+        const sheetBackgroundImage2 = sheet2.querySelector('backgroundImage')?.textContent;
+        const rootBackgroundImage2 = xmlDoc2.querySelector('backgroundImage')?.textContent;
+        const backgroundImage2 = sheetBackgroundImage2 || rootBackgroundImage2;
 
         layoutHtml += `
-            <div class="${overlayClass}${selectedClass}"
-                 style="top:${top}px;left:${left}px;width:${clusterWidth}px;height:${clusterHeight}px;"
-                 data-cluster-index="${index}"
-                 title="INDEX ${index}">
-                ${roleTag}
-                <span class="${badgeClass}">${index}</span>
-                ${diffMark}
+            <div style="display:flex;gap:${gap}px;padding:${outerPadding}px;align-items:flex-start;">
+                <div style="flex:1;text-align:center;">
+                    <h4 style="color:#ff9500;margin-bottom:0.5rem;font-size:1.1rem;font-weight:600;">📄 基準XML</h4>
+                    <div style="position:relative;width:${containerWidthFinal}px;height:${containerHeightFinal}px;border:3px solid #ff9500;background:#fff;margin:0 auto;border-radius:10px;box-shadow:0 4px 15px rgba(255,149,0,0.2);overflow:visible;display:flex;align-items:center;justify-content:center;">
+                        <div id="carbonCopyContent1" style="position:relative;width:${scaledWidth1}px;height:${scaledHeight1}px;margin:${contentPadding}px auto;overflow:visible;">
+                            ${buildSheetBackgroundHtml(scaledWidth1, scaledHeight1, backgroundImage1, 'carbonCopyCanvas1', sheetBackgroundImage1, rootBackgroundImage1, pendingCarbonCopyPdfRenders)}
+                            ${buildCarbonCopyClusterOverlays(clusters1, clusters1, clusters2, 'ref', compareMode, optimalScale, width, height, sheetNo1Based, selectedCarbonCopyIndex)}
+                        </div>
+                    </div>
+                </div>
+                <div style="flex:1;text-align:center;">
+                    <h4 style="color:#007bff;margin-bottom:0.5rem;font-size:1.1rem;font-weight:600;">📄 比較XML</h4>
+                    <div style="position:relative;width:${containerWidthFinal}px;height:${containerHeightFinal}px;border:3px solid #007bff;background:#fff;margin:0 auto;border-radius:10px;box-shadow:0 4px 15px rgba(0,123,255,0.15);overflow:visible;display:flex;align-items:center;justify-content:center;">
+                        <div id="carbonCopyContent2" style="position:relative;width:${scaledWidth2}px;height:${scaledHeight2}px;margin:${contentPadding}px auto;overflow:visible;">
+                            ${buildSheetBackgroundHtml(scaledWidth2, scaledHeight2, backgroundImage2, 'carbonCopyCanvas2', sheetBackgroundImage2, rootBackgroundImage2, pendingCarbonCopyPdfRenders)}
+                            ${buildCarbonCopyClusterOverlays(clusters2, clusters1, clusters2, 'comp', compareMode, optimalScale, width2, height2, sheetNo1Based, selectedCarbonCopyIndex)}
+                        </div>
+                    </div>
+                </div>
             </div>`;
-    });
+    } else {
+        const viewerSize = getPdfViewerSize(viewer, 500, 600);
+        const viewerWidth = Math.max(viewerSize.width - 40, 1);
+        const viewerHeight = Math.max(viewerSize.height - 40, 1);
+        const scaleX = viewerWidth / width;
+        const scaleY = viewerHeight / height;
+        const optimalScale = normalizeLayoutScale(Math.min(scaleX, scaleY, 1.2), width, height);
+        const scaledWidth = width * optimalScale;
+        const scaledHeight = height * optimalScale;
 
-    layoutHtml += `</div></div>`;
+        layoutHtml += `
+            <div style="display:flex;justify-content:center;padding:0.5rem;">
+                <div id="carbonCopyContent" style="position:relative;width:${scaledWidth}px;height:${scaledHeight}px;border:3px solid #ff9500;border-radius:10px;background:#fff;overflow:visible;box-shadow:0 4px 15px rgba(255,149,0,0.2);">
+                    ${buildSheetBackgroundHtml(scaledWidth, scaledHeight, backgroundImage1, 'carbonCopyCanvas', sheetBackgroundImage1, rootBackgroundImage1, pendingCarbonCopyPdfRenders)}
+                    ${buildCarbonCopyClusterOverlays(clusters1, clusters1, clusters2, 'ref', compareMode, optimalScale, width, height, sheetNo1Based, selectedCarbonCopyIndex)}
+                </div>
+            </div>`;
+    }
+
     viewer.innerHTML = layoutHtml;
 
-    cancelCarbonCopyPdfRenders();
     pendingCarbonCopyPdfRenders.forEach(({ base64, canvasId, width: w, height: h, pageNumber }) => {
         renderPdfAsImage(base64, canvasId, w, h, pageNumber);
     });
 
-    if (selectedCarbonCopyIndex != null && selectedCarbonCopyIndex < displayClusters.length) {
-        updateCarbonCopyDetailPanel(selectedCarbonCopyIndex);
-    } else {
-        resetCarbonCopyDetailPanel(compareMode
-            ? '比較XMLのクラスターをクリックして、カーボンコピー元・先の設定を確認してください。'
-            : '基準XMLのクラスターをクリックして、カーボンコピー設定を確認してください。');
-    }
+    closeCarbonCopyModal();
 }
 
 function generateNetworkLayout(xmlData) {
@@ -2842,13 +3635,7 @@ function generateNetworkLayout(xmlData) {
         const centerX = left + clusterWidth / 2;
         const centerY = top + clusterHeight / 2;
         
-        layoutHtml += `
-            <div class="network-node single" 
-                 style="left: ${(centerX - 15) * optimalScale}px; top: ${(centerY - 15) * optimalScale}px; width: ${30 * optimalScale}px; height: ${30 * optimalScale}px; z-index: 2;"
-                 title="${name}">
-                ${index}
-            </div>
-        `;
+        layoutHtml += buildNetworkNodeHtml(index, centerX * optimalScale, centerY * optimalScale, name, 'single');
     });
     
     // ネットワーク線を表示（z-index: 2 で背景の上に）
@@ -2878,23 +3665,25 @@ function generateNetworkLayout(xmlData) {
                 const toClusterWidth = toRight - toLeft;
                 const toClusterHeight = toBottom - toTop;
                 
-                // ネットワークの違いを判定
-                const isDifferent = checkNetworkDifference(network, index);
-                const lineClass = isDifferent ? 'different' : 'same';
+                // 比較前は基準の線としてオレンジ、比較時は差分判定
+                const isPreview = !xmlData2;
+                const isDifferent = !isPreview && checkNetworkDifference(network, index);
+                const lineClass = isDifferent ? 'different' : (isPreview ? 'single' : 'same');
+                const lineColor = isDifferent ? '#dc3545' : (isPreview ? '#ff9500' : '#007bff');
                 console.log(`ネットワーク${index}: isDifferent=${isDifferent}, lineClass=${lineClass}`);
                 
                 const svgHtml = `
                     <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2;">
                         <defs>
-                            <marker id="arrowhead-${lineClass}" markerWidth="10" markerHeight="7" 
+                            <marker id="arrowhead-${lineClass}-${index}" markerWidth="10" markerHeight="7" 
                                     refX="9" refY="3.5" orient="auto">
-                                <polygon points="0 0, 10 3.5, 0 7" fill="${lineClass === 'different' ? '#dc3545' : lineClass === 'same' ? '#007bff' : '#ff9500'}" />
+                                <polygon points="0 0, 10 3.5, 0 7" fill="${lineColor}" />
                             </marker>
                         </defs>
                         <line class="network-line ${lineClass}" 
                               x1="${(fromLeft + fromClusterWidth / 2) * optimalScale}" y1="${(fromTop + fromClusterHeight / 2) * optimalScale}" 
                               x2="${(toLeft + toClusterWidth / 2) * optimalScale}" y2="${(toTop + toClusterHeight / 2) * optimalScale}" 
-                              stroke="${lineClass === 'different' ? '#dc3545' : '#007bff'}" stroke-width="4" marker-end="url(#arrowhead-${lineClass})" />
+                              stroke="${lineColor}" stroke-width="4" marker-end="url(#arrowhead-${lineClass}-${index})" />
                     </svg>
                 `;
                 
@@ -2906,9 +3695,9 @@ function generateNetworkLayout(xmlData) {
                 const toY = (toTop + toClusterHeight / 2) * optimalScale;
                 
                 let clickableLineHtml = `
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: auto; z-index: 2;">
-                        <svg style="width: 100%; height: 100%;">
-                            <line class="network-click-target" style="stroke: transparent; stroke-width: 30; cursor: pointer; transition: stroke 0.2s ease;" 
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3;">
+                        <svg style="width: 100%; height: 100%; pointer-events: none;">
+                            <line class="network-click-target" style="stroke: transparent; stroke-width: 30; cursor: pointer; pointer-events: stroke; transition: stroke 0.2s ease;" 
                                   x1="${fromX}" y1="${fromY}" 
                                   x2="${toX}" y2="${toY}" 
                                   data-network-index="${index}"
@@ -2932,6 +3721,9 @@ function generateNetworkLayout(xmlData) {
             renderPdfAsImage(base64, 'networkPdfCanvas', layoutWidth, layoutHeight, pageNumber);
         }
     }
+
+    // 比較前でも線をクリックして基準のネットワーク設定を見られるようにする
+    bindNetworkClickTargets(viewer);
 }
 
 // ネットワーク設定比較ヘルパー関数
@@ -2945,6 +3737,36 @@ function getNetworkDifferenceDetails(network, index) {
 
 // 選択されたネットワークのリストを保持するグローバル変数（クリックした1件のみ表示するため1要素のみ）
 let selectedNetworks = [];
+
+function bindNetworkClickTargets(viewer) {
+    if (!viewer) return;
+    const clickableLines = viewer.querySelectorAll('.network-click-target');
+    clickableLines.forEach((line) => {
+        const networkIndex = line.getAttribute('data-network-index');
+        const networkDetails = line.getAttribute('data-network-details');
+        line.style.pointerEvents = 'stroke';
+        line.addEventListener('click', (event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            if (!networkDetails) return;
+            try {
+                showNetworkDifferenceDetails(parseInt(networkIndex, 10), networkDetails);
+            } catch (error) {
+                console.error('showNetworkDifferenceDetails エラー:', error);
+            }
+        });
+        line.addEventListener('mouseover', function (event) {
+            event.stopPropagation();
+            this.style.stroke = 'rgba(255, 149, 0, 0.45)';
+            this.style.strokeWidth = '20';
+        });
+        line.addEventListener('mouseout', function (event) {
+            event.stopPropagation();
+            this.style.stroke = 'transparent';
+            this.style.strokeWidth = '20';
+        });
+    });
+}
 
 function showNetworkDifferenceDetails(index, detailsJson) {
     console.log('showNetworkDifferenceDetails 呼び出し:', { index, detailsJsonLength: detailsJson?.length });
@@ -2996,15 +3818,60 @@ function updateNetworkModal() {
         `;
         
         // 基準XML vs 比較XML をクラスター設定と同様に先頭で表示
-        const formatClusterVal = (id, name) => {
-            if (!id || id === '存在しない') return id || 'なし';
-            return `${id}${name ? ` (${name})` : ''}`;
-        };
+        const formatClusterVal = (id, name) => formatNetworkClusterLabel(id, name);
         const refPrev = formatClusterVal(details.ref_prevClusterId, details.ref_prevClusterName);
         const refNext = formatClusterVal(details.ref_nextClusterId, details.ref_nextClusterName);
         const compPrev = formatClusterVal(details.prevClusterId, details.prevClusterName);
         const compNext = formatClusterVal(details.nextClusterId, details.nextClusterName);
         const hasDiff = details.hasDifferences && details.differences && details.differences.length > 0;
+        const isPreview = details.previewOnly || (xmlData1 && !xmlData2);
+
+        if (isPreview) {
+            modalTitle.textContent = '🔗 ネットワーク詳細情報（基準XML）';
+            const previewPrev = formatClusterVal(details.prevClusterId, details.prevClusterName);
+            const previewNext = formatClusterVal(details.nextClusterId, details.nextClusterName);
+            html += `
+            <div class="network-info-section">
+                <h4>📋 基本情報（基準XML）</h4>
+                <table class="network-comparison-table">
+                    <thead>
+                        <tr>
+                            <th>設定項目</th>
+                            <th>基準XML</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>先行クラスター</strong></td>
+                            <td>${escapeHtml(previewPrev)}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>後続クラスター</strong></td>
+                            <td>${escapeHtml(previewNext)}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>後続への自動表示追加</strong></td>
+                            <td>${escapeHtml(details.skipFormatted != null ? String(details.skipFormatted) : 'なし')}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>入力制限</strong></td>
+                            <td>${escapeHtml(details.conditionFormatted != null ? String(details.conditionFormatted) : '制限なし')}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>バリューリンク数</strong></td>
+                            <td>${details.valueLinksCount != null ? details.valueLinksCount : 0}個</td>
+                        </tr>
+                        <tr>
+                            <td><strong>マスター選択デフォルト検索値設定</strong></td>
+                            <td>${escapeHtml(details.customMasterSearchFieldFormatted || 'なし')}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            `;
+            html += `</div>`;
+            return;
+        }
         
         html += `
             <div class="network-info-section">
@@ -3049,6 +3916,12 @@ function updateNetworkModal() {
                             <td>${details.valueLinksCount != null ? details.valueLinksCount + '個' : '0個'}</td>
                             <td>${(details.ref_valueLinksCount !== details.valueLinksCount) ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
                         </tr>
+                        <tr>
+                            <td><strong>マスター選択デフォルト検索値設定</strong></td>
+                            <td>${details.ref_customMasterSearchFieldFormatted != null ? escapeHtml(details.ref_customMasterSearchFieldFormatted) : 'なし'}</td>
+                            <td>${details.customMasterSearchFieldFormatted != null ? escapeHtml(details.customMasterSearchFieldFormatted) : 'なし'}</td>
+                            <td>${(details.ref_customMasterSearchFieldFormatted !== details.customMasterSearchFieldFormatted) ? `<span class="network-value-different">不一致</span>` : `<span class="network-value-same">一致</span>`}</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -3082,11 +3955,11 @@ function updateNetworkModal() {
                 <h4>📋 基本情報（比較XML）</h4>
                 <div class="network-info-item">
                     <span class="network-info-label">先行クラスター:</span>
-                    <span class="network-info-value">${escapeHtml(details.prevClusterId || 'なし')}${details.prevClusterName ? ` (${escapeHtml(details.prevClusterName)})` : ''}</span>
+                    <span class="network-info-value">${escapeHtml(formatNetworkClusterLabel(details.prevClusterId, details.prevClusterName))}</span>
                 </div>
                 <div class="network-info-item">
                     <span class="network-info-label">後続クラスター:</span>
-                    <span class="network-info-value">${escapeHtml(details.nextClusterId || 'なし')}${details.nextClusterName ? ` (${escapeHtml(details.nextClusterName)})` : ''}</span>
+                    <span class="network-info-value">${escapeHtml(formatNetworkClusterLabel(details.nextClusterId, details.nextClusterName))}</span>
                 </div>
                 <div class="network-info-item">
                     <span class="network-info-label">後続クラスターへの自動表示追加:</span>
@@ -3099,6 +3972,10 @@ function updateNetworkModal() {
                 <div class="network-info-item">
                     <span class="network-info-label">バリューリンク数:</span>
                     <span class="network-info-value">${details.valueLinksCount != null ? details.valueLinksCount : '0'}個</span>
+                </div>
+                <div class="network-info-item">
+                    <span class="network-info-label">マスター選択デフォルト検索値設定:</span>
+                    <span class="network-info-value">${escapeHtml(details.customMasterSearchFieldFormatted || 'なし')}</span>
                 </div>
             </div>
         `;
@@ -3400,6 +4277,8 @@ function changeSheet(index) {
             updateNetworkLayout();
         } else if (activeTab.id === 'def-info-layoutTab') {
             updateDefInfoLayout();
+        } else if (activeTab.id === 'custom-master-layoutTab') {
+            updateCustomMasterLayout();
         } else if (activeTab.id === 'carbon-copy-layoutTab') {
             updateCarbonCopyLayout();
         }
@@ -3411,7 +4290,7 @@ function selectCluster(index) {
     console.log('クラスター選択:', index);
     
     if (!xmlData1 && !xmlData2) {
-        alert(`クラスター ${index + 1} が選択されました`);
+        alert(`${formatClusterCode(currentSheetIndex + 1, index)} が選択されました`);
         return;
     }
     
@@ -3432,7 +4311,7 @@ function selectCluster(index) {
     if (xmlData1 && !xmlData2) {
         if (!cluster1) {
             showClusterErrorModal('クラスターが見つかりません', 
-                `クラスター ${index + 1} は存在しません。（このシートのクラスター数: ${clusters1.length}）`);
+                `${formatClusterCode(currentSheetIndex + 1, index)} は存在しません。（このシートのクラスター数: ${clusters1.length}）`);
             return;
         }
         
@@ -3503,11 +4382,8 @@ function selectCluster(index) {
         const groupId1 = getGroupId(cluster1);
         const customMasterInfo1 = getCustomMasterInfo(cluster1, doc1);
         const childInfo1 = getCurrentClusterChildInfo(cluster1);
-        const choices1 = Array.from(cluster1.querySelectorAll('choices choice')).map(choice => ({
-            value: choice.querySelector('value')?.textContent || '',
-            label: choice.querySelector('label')?.textContent || '',
-            selected: choice.querySelector('selected')?.textContent || 'false'
-        }));
+        const choices1 = extractChoicesFromCluster(cluster1);
+        const showChoicePreview = choices1.length > 0 || type1 === 'Select' || type1 === 'MultiSelect' || type1 === 'MultipleChoiceNumber';
         
         const modal = document.getElementById('clusterModal');
         const modalBody = document.getElementById('clusterModalBody');
@@ -3531,7 +4407,7 @@ function selectCluster(index) {
         let html = `
             <div class="cluster-basic-info">
                 <h4>📋 基本情報</h4>
-                <div class="cluster-basic-item"><span class="cluster-basic-label">クラスターINDEX:</span><span class="cluster-basic-value">${index}</span></div>
+                <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター番号:</span><span class="cluster-basic-value">${formatClusterCode(currentSheetIndex + 1, index)}</span></div>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター名称:</span><span class="cluster-basic-value">${escapeHtml(name1 || '未設定')}</span></div>
                 <div class="cluster-basic-item"><span class="cluster-basic-label">クラスター種別:</span><span class="cluster-basic-value">${escapeHtml(getClusterTypeJapanese(type1) || '未設定')}</span></div>
                 ${previewExtraRows}
@@ -3555,15 +4431,8 @@ function selectCluster(index) {
                 </div>
             `;
         }
-        if (choices1.length > 0) {
-            html += `
-                <div class="cluster-basic-info" style="margin-top: 1rem;">
-                    <h4>📝 選択肢</h4>
-                    <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                        ${choices1.map((c, i) => `<li>選択肢${i + 1}: ${escapeHtml(c.label)} (値: ${escapeHtml(c.value)}, 選択: ${c.selected === 'true' ? 'あり' : 'なし'})</li>`).join('')}
-                    </ul>
-                </div>
-            `;
+        if (showChoicePreview) {
+            html += renderClusterPreviewChoices(choices1);
         }
         html += getClusterModalDisplayNote();
         modalBody.innerHTML = html;
@@ -3587,7 +4456,7 @@ function selectCluster(index) {
     
     if (!cluster1 && !cluster2) {
         showClusterErrorModal('クラスターが見つかりません', 
-            `クラスター ${index + 1} は基準XMLと比較XMLの両方に存在しません。<br>` +
+            `${formatClusterCode(currentSheetIndex + 1, index)} は基準XMLと比較XMLの両方に存在しません。<br>` +
             `基準XML: ${clusters1.length}個、比較XML: ${clusters2.length}個`);
         return;
     }
@@ -3964,8 +4833,8 @@ function selectCluster(index) {
 
     let html = `
         <div class="cluster-index-info">
-            <span class="cluster-index-label">クラスターINDEX:</span>
-            <span class="cluster-index-value">${index}</span>
+            <span class="cluster-index-label">クラスター番号:</span>
+            <span class="cluster-index-value">${formatClusterCode(currentSheetIndex + 1, index)}</span>
         </div>
     `;
     html += renderClusterComparisonTable(comparisonRows);
@@ -4434,7 +5303,7 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
                     font-weight: 600;
                     white-space: nowrap;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                ">${index}</div>
+                ">${formatClusterCode(currentSheetIndex + 1, index)}</div>
             </div>
         `;
     });
@@ -4617,7 +5486,7 @@ async function generateComparePdfLayoutSingleView(xmlData1, xmlData2, displayMod
                     font-weight: 600;
                     white-space: nowrap;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                ">${index}</div>
+                ">${formatClusterCode(currentSheetIndex + 1, index)}</div>
                 ${showWarning ? `<div class="cluster-difference-indicator" style="position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: ${warningColor}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">!</div>` : ''}
             </div>
         `;
@@ -5087,16 +5956,7 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
         // クラスターの中心にノードを表示
         const centerX = leftOriginal + clusterWidthOriginal / 2;
         const centerY = topOriginal + clusterHeightOriginal / 2;
-        const nodeSize = Math.max(20, 30 * pdfScale);
-        const nodeOffset = nodeSize / 2;
-        
-        layoutHtml += `
-            <div class="network-node" 
-                 style="position: absolute; left: ${(centerX * pdfScale) - nodeOffset}px; top: ${(centerY * pdfScale) - nodeOffset}px; width: ${nodeSize}px; height: ${nodeSize}px; background: #ff9500; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${Math.max(10, nodeSize * 0.4)}px; font-weight: bold; z-index: 3; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"
-                 title="${name}">
-                ${index}
-            </div>
-        `;
+        layoutHtml += buildNetworkNodeHtml(index, centerX * pdfScale, centerY * pdfScale, name, '', '#ff9500');
     });
     
     // 基準XMLのネットワーク線を表示（左側パネル）
@@ -5286,16 +6146,7 @@ function generateCompareNetworkLayoutSingleView(xmlData1, xmlData2) {
         // クラスターの中心にノードを表示
         const centerX = leftOriginal + clusterWidthOriginal / 2;
         const centerY = topOriginal + clusterHeightOriginal / 2;
-        const nodeSize = Math.max(20, 30 * pdfScale);
-        const nodeOffset = nodeSize / 2;
-        
-        layoutHtml += `
-            <div class="network-node" 
-                 style="position: absolute; left: ${(centerX * pdfScale) - nodeOffset}px; top: ${(centerY * pdfScale) - nodeOffset}px; width: ${nodeSize}px; height: ${nodeSize}px; background: #007bff; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${Math.max(10, nodeSize * 0.4)}px; font-weight: bold; z-index: 3; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"
-                 title="${name}">
-                ${index}
-            </div>
-        `;
+        layoutHtml += buildNetworkNodeHtml(index, centerX * pdfScale, centerY * pdfScale, name, '', '#007bff');
     });
     
     // 比較XMLのネットワーク線を表示（右側パネル）
@@ -5794,7 +6645,7 @@ function bindUiEvents() {
 
             <h4 class="tool-guide-section-title"><span class="tool-guide-icon" aria-hidden="true">✓</span> このツールでできること</h4>
             <ul class="tool-guide-feature-list">
-                <li><span class="tool-guide-feature-icon">📋</span> <strong>基準の選択</strong><br>「STEP.1」「STEP.2」から、比較の基準となる定義を選べます。</li>
+                <li><span class="tool-guide-feature-icon">📋</span> <strong>基準の選択</strong><br>演習ルームと同じ「STEP.1 帳票定義の作成」〜「STEP.4 カスタムマスターの設定（応用）」から、比較の基準となる定義を選べます。</li>
                 <li><span class="tool-guide-feature-icon">📤</span> <strong>比較ファイルの登録</strong><br>ご自身で作成・編集したXMLファイルをアップロードし、基準と比較できます。</li>
                 <li><span class="tool-guide-feature-icon">🔧</span> <strong>クラスター設定の確認</strong><br>シート上のクラスターを色で表示。クリックで詳細と基準との違いを確認できます。<br>
                     <span class="tool-guide-legend"><span class="tool-guide-dot tool-guide-dot-ref"></span>基準</span>
@@ -5809,7 +6660,7 @@ function bindUiEvents() {
 
             <h4 class="tool-guide-section-title"><span class="tool-guide-icon tool-guide-icon-arrow" aria-hidden="true">→</span> 操作の流れ</h4>
             <ol class="tool-guide-steps">
-                <li><span class="tool-guide-step-num">1</span> 基準XMLで「STEP.1」または「STEP.2」を選択</li>
+                <li><span class="tool-guide-step-num">1</span> 基準XMLで、演習と同じ STEP を選択</li>
                 <li><span class="tool-guide-step-num">2</span> 「比較XMLをアップロード」から、比較したいXMLファイルを選択</li>
                 <li><span class="tool-guide-step-num">3</span> 「比較を開始」をクリック</li>
                 <li><span class="tool-guide-step-num">4</span> 「クラスター設定」「ネットワーク設定」タブで結果を確認。赤い表示をクリックすると差分の詳細が表示されます</li>
@@ -5925,6 +6776,24 @@ function bindUiEvents() {
     const clusterCloseBtn = document.querySelector('.cluster-modal-close');
     if (clusterCloseBtn) clusterCloseBtn.addEventListener('click', closeClusterModal);
 
+    const customMasterModal = document.getElementById('customMasterModal');
+    if (customMasterModal) customMasterModal.addEventListener('click', closeCustomMasterModal);
+    const customMasterModalContent = document.querySelector('#customMasterModal .custom-master-modal-content');
+    if (customMasterModalContent) {
+        customMasterModalContent.addEventListener('click', (event) => event.stopPropagation());
+    }
+    const customMasterCloseBtn = document.getElementById('customMasterModalClose');
+    if (customMasterCloseBtn) customMasterCloseBtn.addEventListener('click', closeCustomMasterModal);
+
+    const carbonCopyModal = document.getElementById('carbonCopyModal');
+    if (carbonCopyModal) carbonCopyModal.addEventListener('click', closeCarbonCopyModal);
+    const carbonCopyModalContent = document.querySelector('#carbonCopyModal .custom-master-modal-content');
+    if (carbonCopyModalContent) {
+        carbonCopyModalContent.addEventListener('click', (event) => event.stopPropagation());
+    }
+    const carbonCopyCloseBtn = document.getElementById('carbonCopyModalClose');
+    if (carbonCopyCloseBtn) carbonCopyCloseBtn.addEventListener('click', closeCarbonCopyModal);
+
 }
 
 function bindDelegatedEvents() {
@@ -5962,12 +6831,31 @@ function bindDelegatedEvents() {
         });
     }
 
+    const customMasterSheetNav = document.getElementById('customMasterSheetNavigationVisible');
+    if (customMasterSheetNav) {
+        customMasterSheetNav.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-custom-master-sheet-index]');
+            if (!button || button.disabled) return;
+            const index = parseInt(button.dataset.customMasterSheetIndex, 10);
+            if (!Number.isNaN(index)) changeCustomMasterSheet(index);
+        });
+    }
+
     document.addEventListener('click', (event) => {
         const carbonCopyOverlay = event.target.closest('.carbon-copy-overlay');
         if (carbonCopyOverlay) {
             const ccIndex = parseInt(carbonCopyOverlay.dataset.clusterIndex, 10);
             if (!Number.isNaN(ccIndex)) {
                 selectCarbonCopyCluster(ccIndex);
+                return;
+            }
+        }
+
+        const customMasterOverlay = event.target.closest('.custom-master-overlay');
+        if (customMasterOverlay) {
+            const cmIndex = parseInt(customMasterOverlay.dataset.clusterIndex, 10);
+            if (!Number.isNaN(cmIndex)) {
+                selectCustomMasterCluster(cmIndex);
                 return;
             }
         }

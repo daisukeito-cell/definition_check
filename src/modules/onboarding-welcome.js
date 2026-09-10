@@ -1,15 +1,56 @@
 const STORAGE_DISMISS = 'trainingRoomOnboardingDismissed';
 
+let overlayBound = false;
+
 /**
  * 初回訪問向け：このページでできること → 端末準備の確認 →（設定済みで本文を「目的」に切替）→ トレーニング開始
+ * 「次回から表示しない」後も、openOnboardingWelcome() で再表示できる
  */
 export function initOnboardingWelcome() {
+    const overlay = document.getElementById('onboardingWelcomeOverlay');
+    if (!overlay) return;
+
+    bindOnboardingWelcome();
+
     if (localStorage.getItem(STORAGE_DISMISS) === '1') {
         return;
     }
+    openOnboardingWelcome({ showPurpose: false });
+}
+
+/**
+ * 初めての案内を開く。showPurpose が true のときは工程図（このページの目的）から表示する
+ */
+export function openOnboardingWelcome(options = {}) {
+    const overlay = document.getElementById('onboardingWelcomeOverlay');
+    if (!overlay) return;
+
+    bindOnboardingWelcome();
+
+    const showPurpose = options.showPurpose === true;
+    const blockFeatures = document.getElementById('onboardingBlockFeatures');
+    const blockPurpose = document.getElementById('onboardingBlockPurpose');
+    const stepTerminal = document.getElementById('onboardingStepTerminal');
+    const stepReady = document.getElementById('onboardingStepReady');
+    const chkDontShow = document.getElementById('onboardingDontShowAgain');
+
+    if (blockFeatures) blockFeatures.hidden = showPurpose;
+    if (blockPurpose) blockPurpose.hidden = !showPurpose;
+    if (stepTerminal) stepTerminal.hidden = showPurpose;
+    if (stepReady) stepReady.hidden = !showPurpose;
+    if (chkDontShow) chkDontShow.checked = false;
+
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function bindOnboardingWelcome() {
+    if (overlayBound) return;
 
     const overlay = document.getElementById('onboardingWelcomeOverlay');
     if (!overlay) return;
+    overlayBound = true;
 
     const blockFeatures = document.getElementById('onboardingBlockFeatures');
     const blockPurpose = document.getElementById('onboardingBlockPurpose');
@@ -21,12 +62,6 @@ export function initOnboardingWelcome() {
     const btnLater = document.getElementById('onboardingBtnLater');
     const chkDontShow = document.getElementById('onboardingDontShowAgain');
     const linkBack = document.getElementById('onboardingLinkBackToTerminal');
-
-    function openOverlay() {
-        overlay.style.display = 'flex';
-        overlay.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-    }
 
     function closeOverlay(saveDismiss) {
         overlay.style.display = 'none';
@@ -41,8 +76,6 @@ export function initOnboardingWelcome() {
             })
         );
     }
-
-    openOverlay();
 
     btnUnset?.addEventListener('click', () => {
         window.location.href = new URL('/setup_Tool/AI_setup.html', window.location.origin).href;
@@ -78,10 +111,9 @@ export function initOnboardingWelcome() {
         }
     });
 
-    document.addEventListener('keydown', function escClose(ev) {
+    document.addEventListener('keydown', (ev) => {
         if (ev.key === 'Escape' && overlay.style.display === 'flex') {
             closeOverlay(false);
-            document.removeEventListener('keydown', escClose);
         }
     });
 }
